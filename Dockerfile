@@ -2,7 +2,7 @@ FROM python:alpine
 
 WORKDIR /src
 
-VOLUME /data/source /data/blanks /data/mounted
+VOLUME /data/source /data/blanks /data/mounted /data/tmp
 
 ENV DATA_DIR=/data \
     BLANKS=10 \
