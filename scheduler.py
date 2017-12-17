@@ -70,7 +70,7 @@ def create_blanks():
     print(f"create {new_tmp_dir}")
     # copy data
     shutil.copytree(source_path, new_tmp_dir)
-    os.chmod(new_path, 0o777)
+    os.chmod(new_tmp_dir, 0o777)
     # move data!
     print(f"move {new_tmp_dir} {new_path}")
     shutil.move(new_tmp_dir, new_path)
