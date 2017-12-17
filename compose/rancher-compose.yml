@@ -1,0 +1,14 @@
+version: '2'
+services:
+  SERVICE_NAME:
+    scale: 1
+    start_on_create: true
+    health_check:
+      response_timeout: 2000
+      healthy_threshold: 2
+      port: INTERNAL_PORT
+      unhealthy_threshold: 3
+      initializing_timeout: SERVICE_TIMEOUT
+      interval: 2000
+      strategy: recreate
+      reinitializing_timeout: SERVICE_TIMEOUT

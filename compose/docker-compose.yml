@@ -1,0 +1,11 @@
+version: '2'
+services:
+  SERVICE_NAME:
+    image: SERVICE_IMAGE
+    labels:
+      io.rancher.container.pull_image: always
+    volumes:
+    - SERVICE_NFS_VOLUME:SERVICE_VOLUME
+volumes:
+  SERVICE_NFS_VOLUME:
+    driver: rancher-nfs
