@@ -91,7 +91,7 @@ def make_data():
                              "awk",
                              "'{print $1}'"])
                         # update lb
-                        update_load_balancer_service(serviceId=RANCHER_SVC_ID)
+                        update_load_balancer_service(serviceId=RANCHER_SVC_ID, hostname=f"service-{uuid}.{os.getenv('ENV_DOMAIN')}")
                         app.lock = False
                         return uuid
             except Exception as e:
