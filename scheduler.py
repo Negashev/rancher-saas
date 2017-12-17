@@ -166,16 +166,10 @@ def clean_tmp():
     tmp_path = mkdir_with_chmod('tmp')
     tmp_dirs = get_dirs(tmp_path)
     this_time = time.time()
-    uuid = None
     for tmp_dir in tmp_dirs:
-        if uuid is not None:
-            break
         # if this cold dir very long
         newest = max(glob.glob(os.path.join(tmp_dir, '*')), key=os.path.getmtime)
         filedate = os.path.getmtime(newest)
         if this_time - filedate > 60.0 * 60:
-            uuid = os.path.basename(tmp_dir)
-    if uuid is not None:
-        # remove service!
-        shutil.rmtree(os.path.join(tmp_path, uuid))
-        print(f'remove freeze tmp {uuid}')
+            print(f'remove freeze tmp {uuid}')
+            shutil.rmtree(tmp_dir)
