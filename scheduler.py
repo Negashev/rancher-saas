@@ -31,6 +31,13 @@ class Config(object):
             'trigger': 'interval',
             'seconds': 15,
             'max_instances': 1
+        },
+        {
+            'id': 'clean_tmp',
+            'func': 'scheduler:clean_tmp',
+            'trigger': 'interval',
+            'seconds': 3600,
+            'max_instances': 1
         }
     ]
 
@@ -44,6 +51,7 @@ class Config(object):
 
 def create_blanks():
     blanks_path = mkdir_with_chmod('blanks')
+    tmp_path = mkdir_with_chmod('tmp')
     # get ready blanks
     blanks_dirs = get_dirs(blanks_path)
     # check if we need new blank
@@ -56,11 +64,16 @@ def create_blanks():
     if this_time - filedate < 20.0:
         return
     # create new path for blank
-    new_path = os.path.join(blanks_path, str(uuid.uuid4()))
-    print(f"create {new_path}")
+    new_dir = str(uuid.uuid4())
+    new_tmp_dir = os.path.join(tmp_path, new_dir)
+    new_path = os.path.join(blanks_path, new_dir)
+    print(f"create {new_tmp_dir}")
     # copy data
-    shutil.copytree(source_path, new_path)
+    shutil.copytree(source_path, new_tmp_dir)
     os.chmod(new_path, 0o777)
+    # move data!
+    print(f"move {new_tmp_dir} {new_path}")
+    shutil.move(new_tmp_dir, new_path)
 
 
 '''
@@ -142,3 +155,27 @@ def clean_mounted():
         ])
         shutil.rmtree(os.path.join(mounted_path, uuid))
         print(f'remove {uuid} not use service')
+
+
+'''
+    Remove freeze tmp clones
+'''
+
+
+def clean_tmp():
+    tmp_path = mkdir_with_chmod('tmp')
+    tmp_dirs = get_dirs(tmp_path)
+    this_time = time.time()
+    uuid = None
+    for tmp_dir in tmp_dirs:
+        if uuid is not None:
+            break
+        # if this cold dir very long
+        newest = max(glob.glob(os.path.join(tmp_dir, '*')), key=os.path.getmtime)
+        filedate = os.path.getmtime(newest)
+        if this_time - filedate > 60.0 * 60:
+            uuid = os.path.basename(tmp_dir)
+    if uuid is not None:
+        # remove service!
+        shutil.rmtree(os.path.join(tmp_path, uuid))
+        print(f'remove freeze tmp {uuid}')
