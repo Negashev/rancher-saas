@@ -4,7 +4,7 @@ import shutil
 import time
 
 import re
-from subprocess import call
+from subprocess import call, check_output
 from flask import Flask
 from flask_apscheduler import APScheduler
 
@@ -61,27 +61,37 @@ def make_data():
                         # create compose files!
                         prepare_compose(uuid, 'docker-compose.yml')
                         prepare_compose(uuid, 'rancher-compose.yml')
-                        # # add storage!
-                        # call([
-                        #     "rancher",
-                        #     "volume",
-                        #     "create",
-                        #     "--driver",
-                        #     "rancher-nfs",
-                        #     os.getenv('SERVICE_NFS_VOLUME', f'mounted') + f'/{uuid}'
-                        # ])
-                        # # add service!
-                        # call([
-                        #     "rancher",
-                        #     "-f",
-                        #     os.path.join(root, 'tmp', 'docker-compose.yml'),
-                        #     "--rancher-file",
-                        #     os.path.join(root, 'tmp', 'rancher-compose.yml'),
-                        #     "up",
-                        #     "-d"
-                        # ])
+                        # add storage!
+                        call([
+                            "rancher",
+                            "volume",
+                            "create",
+                            "--driver",
+                            "rancher-nfs",
+                            os.getenv('SERVICE_NFS_VOLUME', f'mounted') + f'/{uuid}'
+                        ])
+                        # add service!
+                        call([
+                            "rancher",
+                            "-f",
+                            os.path.join(root, 'tmp', 'docker-compose.yml'),
+                            "--rancher-file",
+                            os.path.join(root, 'tmp', 'rancher-compose.yml'),
+                            "up",
+                            "-d"
+                        ])
+                        # get service id for LB
+                        RANCHER_SVC_ID = check_output(
+                            ["rancher",
+                             "ps",
+                             "|",
+                             "grep",
+                             f"{os.getenv('COMPOSE_PROJECT_NAME')}/service-{uuid}",
+                             "|",
+                             "awk",
+                             "'{print $1}'"])
                         # update lb
-                        update_load_balancer_service(serviceId=os.getenv('RANCHER_SVC_ID'))
+                        update_load_balancer_service(serviceId=RANCHER_SVC_ID)
                         app.lock = False
                         return uuid
             except Exception as e:
