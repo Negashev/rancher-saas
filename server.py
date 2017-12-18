@@ -78,11 +78,8 @@ def make_data():
                         ])
                         # get service id for LB
                         RANCHER_SVC_ID = check_output(["sh", "-c", f"rancher ps | grep {os.getenv('COMPOSE_PROJECT_NAME')}/service-{uuid} | awk '{{print $1}}'"]).decode().rstrip('\n')
-                        # update lb
-                        update_load_balancer_service(serviceId=RANCHER_SVC_ID,
-                                                     hostname=f"service-{uuid}.{os.getenv('ENV_DOMAIN')}")
                         app.lock = False
-                        return uuid
+                        return RANCHER_SVC_ID
             except Exception as e:
                 app.lock = False
                 return e, 401
