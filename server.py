@@ -8,7 +8,6 @@ from subprocess import call, check_output
 from flask import Flask
 
 from hacks import mkdir_with_chmod, get_dirs
-from rancher_update_lb import update_load_balancer_service
 
 app = Flask(__name__)
 app.app_root = os.path.dirname(os.path.abspath(__file__))
