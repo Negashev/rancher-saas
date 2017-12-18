@@ -15,7 +15,7 @@ ADD https://github.com/rancher/cli/releases/download/$RANCHER_CLI_VERSION/ranche
 RUN tar -xf /tmp/rancher.tar.gz -C /tmp && \
     mv /tmp/rancher-$RANCHER_CLI_VERSION/rancher /usr/bin/
 
-ADD *.py ./
-ADD compose ./
-
 CMD ["python", "server.py"]
+
+ADD compose compose
+ADD *.py ./

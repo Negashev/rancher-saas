@@ -19,6 +19,7 @@ root = '/'
 
 
 def prepare_compose(service_name, compose_file):
+    print(f"create {os.path.join(root, 'tmp', compose_file)} by {os.path.join(app.app_root, 'compose', compose_file)}")
     with open(os.path.join(app.app_root, 'compose', compose_file), 'r') as compose:
         data = compose.read()
         data = re.sub("SERVICE_NAME", f"service-{service_name}", data)
