@@ -175,7 +175,7 @@ def clean_tmp():
         # if this cold dir very long
         newer_file, newer_time = last_modify_file(tmp_dir)
         if this_time - newer_time > 60.0 * 60:
-            print(f'remove freeze tmp {uuid}')
+            print(f'remove freeze tmp {tmp_dir}')
             shutil.rmtree(tmp_dir)
 
 
