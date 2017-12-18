@@ -8,7 +8,7 @@ from subprocess import call, check_output
 from flask import Flask
 from flask_apscheduler import APScheduler
 
-from hacks import mkdir_with_chmod, get_dirs, last_modify_file
+from hacks import mkdir_with_chmod, get_dirs
 from rancher_update_lb import update_load_balancer_service
 from scheduler import Config
 
@@ -79,15 +79,7 @@ def make_data():
                             "-d"
                         ])
                         # get service id for LB
-                        RANCHER_SVC_ID = check_output(
-                            ["rancher",
-                             "ps",
-                             "|",
-                             "grep",
-                             f"{os.getenv('COMPOSE_PROJECT_NAME')}/service-{uuid}",
-                             "|",
-                             "awk",
-                             "'{print $1}'"])
+                        RANCHER_SVC_ID = check_output(["sh", "-c", f"rancher ps | grep {os.getenv('COMPOSE_PROJECT_NAME')}/service-{uuid} | awk '{{print $1}}'"]).decode().rstrip('\n')
                         # update lb
                         update_load_balancer_service(serviceId=RANCHER_SVC_ID,
                                                      hostname=f"service-{uuid}.{os.getenv('ENV_DOMAIN')}")
