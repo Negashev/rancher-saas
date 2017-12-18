@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 
@@ -78,7 +79,7 @@ def make_data():
                         # get service id for inspect
                         RANCHER_SVC_ID = check_output(["sh", "-c", f"rancher ps | grep {os.getenv('COMPOSE_PROJECT_NAME')}/service-{uuid} | awk '{{print $1}}'"]).decode().rstrip('\n')
                         # inspect service id for get ip:port
-                        RANCHER_SVC_JSON = check_output(["rancher", "inspect", RANCHER_SVC_ID]).decode().rstrip('\n')
+                        RANCHER_SVC_JSON = json.loads(check_output(["rancher", "inspect", RANCHER_SVC_ID]).decode().rstrip('\n'))
                         # get first ip:port
                         publicEndpoint = RANCHER_SVC_JSON['publicEndpoints'][0]
                         app.lock = False
