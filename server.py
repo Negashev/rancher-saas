@@ -8,7 +8,7 @@ from subprocess import call, check_output
 from flask import Flask
 from flask_apscheduler import APScheduler
 
-from hacks import mkdir_with_chmod, get_dirs
+from hacks import mkdir_with_chmod, get_dirs, last_modify_file
 from rancher_update_lb import update_load_balancer_service
 from scheduler import Config
 
@@ -16,7 +16,6 @@ app = Flask(__name__)
 app.app_root = os.path.dirname(os.path.abspath(__file__))
 app.lock = False
 root = '/'
-root = app.app_root
 
 
 def prepare_compose(service_name, compose_file):
@@ -47,16 +46,14 @@ def make_data():
         blanks_dirs = get_dirs(blanks_path)
         for blank_dir in blanks_dirs:
             try:
-                filedate = os.path.getmtime(blank_dir)
-                if this_time - filedate < 20.0:
-                    continue
                 with open(os.path.join(blank_dir, '.uuid'), 'r') as f:
                     blank_uuid = f.read()
                     # if uuid update (new source data)
                     if source_uuid == blank_uuid:
                         uuid = os.path.basename(blank_dir)
                         # move data with first update!
-                        os.remove(os.path.join(blank_dir, '.uuid'))
+                        with open(os.path.join(blank_dir, '.move_hack'), 'w') as out:
+                            out.write(this_time)
                         shutil.move(blank_dir, os.path.join(mounted_path, uuid))
                         # create compose files!
                         prepare_compose(uuid, 'docker-compose.yml')
@@ -91,7 +88,8 @@ def make_data():
                              "awk",
                              "'{print $1}'"])
                         # update lb
-                        update_load_balancer_service(serviceId=RANCHER_SVC_ID, hostname=f"service-{uuid}.{os.getenv('ENV_DOMAIN')}")
+                        update_load_balancer_service(serviceId=RANCHER_SVC_ID,
+                                                     hostname=f"service-{uuid}.{os.getenv('ENV_DOMAIN')}")
                         app.lock = False
                         return uuid
             except Exception as e:
