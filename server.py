@@ -52,8 +52,8 @@ def make_data():
                     if source_uuid == blank_uuid:
                         uuid = os.path.basename(blank_dir)
                         # move data with first update!
-                        with open(os.path.join(blank_dir, '.move_hack'), 'w') as out:
-                            out.write(this_time)
+                        with open(os.path.join(blank_dir, f'.move_{blank_uuid}'), 'w') as out:
+                            out.write(str(this_time))
                         shutil.move(blank_dir, os.path.join(mounted_path, uuid))
                         # create compose files!
                         prepare_compose(uuid, 'docker-compose.yml')
