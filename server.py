@@ -75,10 +75,14 @@ def make_data():
                             "up",
                             "-d"
                         ])
-                        # get service id for LB
+                        # get service id for inspect
                         RANCHER_SVC_ID = check_output(["sh", "-c", f"rancher ps | grep {os.getenv('COMPOSE_PROJECT_NAME')}/service-{uuid} | awk '{{print $1}}'"]).decode().rstrip('\n')
+                        # inspect service id for get ip:port
+                        RANCHER_SVC_JSON = check_output(["rancher", "inspect", RANCHER_SVC_ID]).decode().rstrip('\n')
+                        # get first ip:port
+                        publicEndpoint = RANCHER_SVC_JSON['publicEndpoints'][0]
                         app.lock = False
-                        return RANCHER_SVC_ID
+                        return f"{publicEndpoint['ipAddress']}:{publicEndpoint['port']}"
             except Exception as e:
                 app.lock = False
                 return e, 401
