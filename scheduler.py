@@ -150,7 +150,6 @@ def clean_mounted():
             "rm",
             os.getenv('SERVICE_NFS_VOLUME', f'mounted') + f'/{uuid}'
         ])
-        shutil.rmtree(os.path.join(mounted_path, uuid))
         print(f'remove {uuid} not use service')
 
 
