@@ -6,11 +6,9 @@ import time
 import re
 from subprocess import call, check_output
 from flask import Flask
-from flask_apscheduler import APScheduler
 
 from hacks import mkdir_with_chmod, get_dirs
 from rancher_update_lb import update_load_balancer_service
-from scheduler import Config
 
 app = Flask(__name__)
 app.app_root = os.path.dirname(os.path.abspath(__file__))
@@ -95,11 +93,6 @@ def make_data():
 
 
 if __name__ == '__main__':
-    app.config.from_object(Config())
-
-    scheduler = APScheduler()
-    scheduler.init_app(app)
-    scheduler.start()
 
     app.run(
         host=os.getenv('HOST', '0.0.0.0'),

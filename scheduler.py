@@ -3,8 +3,15 @@ import time
 import uuid
 import shutil
 from subprocess import call
+from flask import Flask
+from flask_apscheduler import APScheduler
 
 from hacks import mkdir_with_chmod, get_dirs, last_modify_file
+
+app = Flask(__name__)
+app.app_root = os.path.dirname(os.path.abspath(__file__))
+app.lock = False
+root = '/'
 
 
 class Config(object):
@@ -170,3 +177,17 @@ def clean_tmp():
         if this_time - newer_time > 60.0 * 60:
             print(f'remove freeze tmp {uuid}')
             shutil.rmtree(tmp_dir)
+
+
+if __name__ == '__main__':
+    app.config.from_object(Config())
+
+    scheduler = APScheduler()
+    scheduler.init_app(app)
+    scheduler.start()
+
+    app.run(
+        host=os.getenv('HOST', '0.0.0.0'),
+        port=int(os.getenv('PORT', 80)),
+        debug=bool(os.getenv('DEBUG', False))
+    )
