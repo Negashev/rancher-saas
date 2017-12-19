@@ -1,0 +1,12 @@
+FROM envoyproxy/envoy-alpine
+RUN apk add --update python3 py-mysqldb supervisor
+RUN apk add --no-cache --virtual .build-deps build-base python3-dev py3-pip \
+        && pip3 --no-cache install flask flask-sqlalchemy requests flask-apscheduler pymysql \
+	&& apk del .build-deps \
+	&& rm -rf /var/cache/apk/*
+WORKDIR /src
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["supervisord", "--nodaemon", "--configuration", "/src/supervisord.conf"]
+ADD entrypoint.sh /
+RUN chmod +x /entrypoint.sh
+ADD supervisord.conf envoy.conf *.py ./
