@@ -282,7 +282,7 @@ async def handle(request):
 
 
 docker = Docker()
-store = IgniteStorage('ignite')
+store = IgniteStorage(os.getenv('IGNITE_HOST', 'ignite'))
 store.create_db()
 
 scheduler = AsyncIOScheduler(timezone="UTC")
