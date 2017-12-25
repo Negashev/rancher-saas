@@ -217,8 +217,11 @@ async def check_for_create_service_with_storage():
         "ExposedPorts": {SERVICE_PORT: {}},
         "PortBindings": {SERVICE_PORT: [{'HostPort': None}]},
         "Binds": [f"{DATA_DIR_ON_SERVER}:{SERVICE_VOLUME}"],
-        "Env" : [f"{i[12:]}={os.getenv(i)}" for i in os.environ if i.startswith('SERVICE_ENV_')]
+        "Env": [f"{i[12:]}={os.getenv(i)}" for i in os.environ if i.startswith('SERVICE_ENV_')]
+
     }
+    if 'SERVICE_CMD' in os.environ:
+        config.update({"Cmd": os.getenv('SERVICE_CMD').split(' ')})
     try:
         await docker.images.get(SERVICE_IMAGE)
     except DockerError as e:
