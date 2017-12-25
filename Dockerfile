@@ -14,5 +14,5 @@ RUN apk add --update --virtual .build-deps build-base py3-pip python3-dev git &&
 	apk del .build-deps && \
 	rm -rf /var/cache/apk/*
 
-ADD worker ./worker
+ADD store ./store
 ADD *.py ./
