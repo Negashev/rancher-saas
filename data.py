@@ -113,7 +113,6 @@ def check_blanks():
     this_time = time.time()
     # if source data not ready
     newer_file, newer_time = last_modify_file(source_path)
-    print('Nothing in local source')
     if newer_time is None:
         return
     if this_time - newer_time < 20.0:
