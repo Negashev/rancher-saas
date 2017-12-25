@@ -216,7 +216,8 @@ async def check_for_create_service_with_storage():
         "StdinOnce": False,
         "ExposedPorts": {SERVICE_PORT: {}},
         "PortBindings": {SERVICE_PORT: [{'HostPort': None}]},
-        "Binds": [f"{DATA_DIR_ON_SERVER}:{SERVICE_VOLUME}"]
+        "Binds": [f"{DATA_DIR_ON_SERVER}:{SERVICE_VOLUME}"],
+        "Env" : [f"{i[12:]}={os.getenv(i)}" for i in os.environ if i.startswith('SERVICE_ENV_')]
     }
     try:
         await docker.images.get(SERVICE_IMAGE)

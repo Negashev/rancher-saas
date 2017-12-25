@@ -99,6 +99,7 @@ class IgniteStorage(BaseStorage):
                 ORDER BY RAND() LIMIT 1
                 ''', 1)
         except IgniteFailed as e:
+            print(e)
             return None
 
         data = self.driver.qryfldexe(f'''
