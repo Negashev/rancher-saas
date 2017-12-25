@@ -1,21 +1,18 @@
-FROM python:alpine
+FROM alpine
 
 WORKDIR /src
 
-VOLUME /data
-
 ENV DATA_DIR=/data \
-    BLANKS=10 \
-    RANCHER_CLI_VERSION=v0.6.4 \
-    COMPOSE_PROJECT_NAME=Default
+    SOURCE_DIR=/source
 
-RUN pip --no-cache install flask Flask-APScheduler requests
+VOLUME /data
+VOLUME /source
 
-ADD https://github.com/rancher/cli/releases/download/$RANCHER_CLI_VERSION/rancher-linux-amd64-$RANCHER_CLI_VERSION.tar.gz /tmp/rancher.tar.gz
-RUN tar -xf /tmp/rancher.tar.gz -C /tmp && \
-    mv /tmp/rancher-$RANCHER_CLI_VERSION/rancher /usr/bin/
+RUN apk add --update python3
+RUN apk add --update --virtual .build-deps build-base py3-pip python3-dev git && \
+	pip3 --no-cache install ignite aiohttp apscheduler redis aiodocker python-socketio https://github.com/cr0hn/aiotasks/archive/master.zip && \
+	apk del .build-deps && \
+	rm -rf /var/cache/apk/*
 
-CMD ["python", "server.py"]
-
-ADD compose compose
+ADD worker ./worker
 ADD *.py ./
