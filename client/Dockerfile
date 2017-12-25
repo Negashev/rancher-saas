@@ -1,7 +1,7 @@
 FROM envoyproxy/envoy-alpine
-RUN apk add --update python3 py-mysqldb supervisor
-RUN apk add --no-cache --virtual .build-deps build-base python3-dev py3-pip \
-        && pip3 --no-cache install flask flask-sqlalchemy requests flask-apscheduler pymysql \
+RUN apk add --update python3 supervisor
+RUN apk add --no-cache --virtual .build-deps py3-pip \
+        && pip3 --no-cache install socketIO-client  \
 	&& apk del .build-deps \
 	&& rm -rf /var/cache/apk/*
 WORKDIR /src

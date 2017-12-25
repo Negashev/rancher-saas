@@ -1,8 +1,7 @@
 import os
 
 
-def mkdir_with_chmod(path):
-    path_full = os.path.join(os.getenv('DATA_DIR'), path)
+def mkdir_with_chmod(path_full):
     os.makedirs(path_full, exist_ok=True)
     os.chmod(path_full, 0o777)
     return path_full
