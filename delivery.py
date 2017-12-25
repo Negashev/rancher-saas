@@ -7,7 +7,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from store.ignite import IgniteStorage
 
-store = IgniteStorage('ignite')
+store = IgniteStorage(os.getenv('IGNITE_HOST', 'ignite'))
 store.create_db()
 
 scheduler = AsyncIOScheduler(timezone="UTC")

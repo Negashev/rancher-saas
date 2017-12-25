@@ -30,9 +30,7 @@ def create_source_cast():
     this_time = time.time()
     # if source data not ready
     newer_file, newer_time = last_modify_file(source_remote_path)
-    if newer_time is None:
-        return
-    if this_time - newer_time < 20.0:
+    if newer_time and this_time - newer_time < 20.0:
         return
 
     # check if we new update or create data
@@ -55,7 +53,7 @@ def create_source_cast():
     os.chmod(new_tmp_dir, 0o777)
     # move data!
     lock = True
-    shutil.rmtree(source_cast_path)
+    shutil.move(source_cast_path, os.path.join(tmp_path, str(uuid.uuid4())))
     print(f"move {new_tmp_dir} {source_cast_path}")
     shutil.move(new_tmp_dir, source_cast_path)
     lock = False
@@ -115,6 +113,9 @@ def check_blanks():
     this_time = time.time()
     # if source data not ready
     newer_file, newer_time = last_modify_file(source_path)
+    print('Nothing in local source')
+    if newer_time is None:
+        return
     if this_time - newer_time < 20.0:
         return
     # get ready blanks
@@ -132,6 +133,8 @@ def check_blanks():
                     if source_uuid != blank_uuid:
                         # if this cold dir
                         newer_file, newer_time = last_modify_file(blank_dir)
+                        if newer_time is None:
+                            continue
                         if this_time - newer_time > 60.0:
                             remove_uuid = blank_dir
             except Exception as e:
@@ -139,6 +142,8 @@ def check_blanks():
                 try:
                     # if this broken blank remove them
                     newer_file, newer_time = last_modify_file(blank_dir)
+                    if newer_time is None:
+                        continue
                     if this_time - newer_time > 60.0:
                         remove_uuid = blank_dir
                 except Exception as e:
@@ -282,18 +287,18 @@ async def handle(request):
 
 
 docker = Docker()
-store = IgniteStorage('ignite')
+store = IgniteStorage(os.getenv('IGNITE_HOST', 'ignite'))
 store.create_db()
 
 scheduler = AsyncIOScheduler(timezone="UTC")
-scheduler.add_job(create_source_cast, 'interval', seconds=2)
-scheduler.add_job(create_blanks, 'interval', seconds=2)
-scheduler.add_job(check_blanks, 'interval', seconds=2)
-scheduler.add_job(clean_tmp, 'interval', seconds=60)
+scheduler.add_job(create_source_cast, 'interval', seconds=30)
+scheduler.add_job(create_blanks, 'interval', seconds=10)
+scheduler.add_job(check_blanks, 'interval', seconds=10)
+scheduler.add_job(clean_tmp, 'interval', seconds=300)
 scheduler.add_job(store_dirs, 'interval', seconds=1)
 scheduler.add_job(store.cleanup_db, 'interval', seconds=15)
 scheduler.add_job(check_for_create_service_with_storage, 'interval', seconds=2)
-scheduler.add_job(check_for_delete_storage_with_service, 'interval', seconds=2)
+scheduler.add_job(check_for_delete_storage_with_service, 'interval', seconds=30)
 scheduler.start()
 
 mgr = socketio.AsyncRedisManager(os.getenv('REDIS_URL', 'redis://redis:6379/0'))
