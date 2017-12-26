@@ -2,8 +2,7 @@ FROM alpine
 
 WORKDIR /src
 
-ENV DATA_DIR=/data \
-    SOURCE_DIR=/source
+ENV DATA_DIR=/data
 
 VOLUME /data
 VOLUME /source

@@ -17,6 +17,12 @@ services:
     image: zookeeper
     ports:
       - 2181:2181
+  source-cloner:
+    image: minio/mc
+    command: mirror --overwrite --remove /source/ /data/source
+    volumes:
+      - ./tmp/worker:/data
+      - ./tmp/remote_source:/source
   redis-ui:
     image: ficusio/redis-commander:latest
     command:  --redis-host redis --redis-port 6379

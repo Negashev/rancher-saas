@@ -162,7 +162,7 @@ def clean_tmp():
         if newer_time is None:
             shutil.rmtree(tmp_dir)
             continue
-        if this_time - newer_time > 60.0 * 60:
+        if this_time - newer_time > 60.0 * 5:
             print(f'remove freeze tmp {tmp_dir}')
             shutil.rmtree(tmp_dir)
 
