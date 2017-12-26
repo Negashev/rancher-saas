@@ -15,7 +15,6 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from store.ignite import IgniteStorage
 from sweet_hacks import mkdir_with_chmod, get_dirs, last_modify_file
 
-lock = False
 mount_lock = False
 '''
     Create source cast
@@ -65,8 +64,6 @@ def create_source_cast():
 
 
 def create_blanks():
-    if lock:
-        return
     blanks_path = mkdir_with_chmod(os.path.join(os.getenv('DATA_DIR'), 'blanks'))
     tmp_path = mkdir_with_chmod(os.path.join(os.getenv('DATA_DIR'), 'tmp'))
     source_path = mkdir_with_chmod(os.path.join(os.getenv('DATA_DIR'), 'source'))
@@ -78,7 +75,6 @@ def create_blanks():
     # check space
     statvfs = os.statvfs(os.getenv('DATA_DIR'))
     if statvfs.f_frsize * statvfs.f_bfree * 1e-9 < float(os.getenv('FREE_SPACE_RESERVE', 20.0)):
-        print('No Space Left')
         return
     this_time = time.time()
     # if source data not ready
@@ -106,8 +102,6 @@ def create_blanks():
 
 
 def check_blanks():
-    if lock:
-        return
     blanks_path = mkdir_with_chmod(os.path.join(os.getenv('DATA_DIR'), 'blanks'))
     source_path = mkdir_with_chmod(os.path.join(os.getenv('DATA_DIR'), 'source'))
     this_time = time.time()
@@ -166,7 +160,8 @@ def clean_tmp():
         # if this cold dir very long
         newer_file, newer_time = last_modify_file(tmp_dir)
         if newer_time is None:
-            return
+            shutil.rmtree(tmp_dir)
+            continue
         if this_time - newer_time > 60.0 * 60:
             print(f'remove freeze tmp {tmp_dir}')
             shutil.rmtree(tmp_dir)
@@ -294,10 +289,10 @@ store = IgniteStorage(os.getenv('IGNITE_HOST', 'ignite'))
 store.create_db()
 
 scheduler = AsyncIOScheduler(timezone="UTC")
-scheduler.add_job(create_source_cast, 'interval', seconds=30)
+# scheduler.add_job(create_source_cast, 'interval', seconds=30)
 scheduler.add_job(create_blanks, 'interval', seconds=10)
 scheduler.add_job(check_blanks, 'interval', seconds=10)
-scheduler.add_job(clean_tmp, 'interval', seconds=300)
+scheduler.add_job(clean_tmp, 'interval', seconds=1)
 scheduler.add_job(store_dirs, 'interval', seconds=1)
 scheduler.add_job(store.cleanup_db, 'interval', seconds=15)
 scheduler.add_job(check_for_create_service_with_storage, 'interval', seconds=2)
