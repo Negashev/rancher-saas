@@ -13,7 +13,7 @@ from aiodocker.exceptions import DockerError
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from store.ignite import IgniteStorage
-from sweet_hacks import mkdir_with_chmod, get_dirs, last_modify_file
+from sweet_hacks import mkdir_with_chmod, get_dirs, last_modify_file, get_size
 
 mount_lock = False
 '''
@@ -91,9 +91,10 @@ def create_blanks():
     # copy data
     shutil.copytree(source_path, new_tmp_dir)
     os.chmod(new_tmp_dir, 0o777)
-    # move data!
-    print(f"move {new_tmp_dir} {new_path}")
-    shutil.move(new_tmp_dir, new_path)
+    if get_size(source_path) == get_size(new_tmp_dir):
+        # move data!
+        print(f"move {new_tmp_dir} {new_path}")
+        shutil.move(new_tmp_dir, new_path)
 
 
 '''
@@ -122,14 +123,18 @@ def check_blanks():
             try:
                 with open(os.path.join(blank_dir, '.uuid'), 'r') as f:
                     blank_uuid = f.read()
+                    # if this cold dir
+                    newer_file, newer_time = last_modify_file(blank_dir)
+                    if newer_time is None:
+                        continue
+                    if this_time - newer_time < 60.0:
+                        continue
                     # if uuid update (new source data)
                     if source_uuid != blank_uuid:
-                        # if this cold dir
-                        newer_file, newer_time = last_modify_file(blank_dir)
-                        if newer_time is None:
-                            continue
-                        if this_time - newer_time > 60.0:
-                            remove_uuid = blank_dir
+                        remove_uuid = blank_dir
+                    # if size not valid
+                    if get_size(source_path) != get_size(blank_dir):
+                        remove_uuid = blank_dir
             except Exception as e:
                 print(e)
                 try:
@@ -239,8 +244,8 @@ async def check_for_create_service_with_storage():
     # if you don't trust for redis :)
     store.set_address_for_directory(directory, f"{hostData['HostIp']}:{hostData['HostPort']}")
     # if you trust for redis :)
-    await sio.emit('waiting', {'uuid': delivery, "address": f"{hostData['HostIp']}:{hostData['HostPort']}"},
-                   room=delivery, namespace='/saas')
+    # await sio.emit('waiting', {'uuid': delivery, "address": f"{hostData['HostIp']}:{hostData['HostPort']}"},
+    #                room=delivery, namespace='/saas')
     mount_lock = False
 
 
@@ -299,8 +304,10 @@ scheduler.add_job(check_for_create_service_with_storage, 'interval', seconds=2)
 scheduler.add_job(check_for_delete_storage_with_service, 'interval', seconds=30)
 scheduler.start()
 
-mgr = socketio.AsyncRedisManager(os.getenv('REDIS_URL', 'redis://redis:6379/0'))
-sio = socketio.AsyncServer(async_mode='aiohttp', client_manager=mgr)
+# mgr = socketio.AsyncRedisManager(os.getenv('REDIS_URL', 'redis://redis:6379/0'))
+sio = socketio.AsyncServer(async_mode='aiohttp'
+                           # , client_manager=mgr
+                           )
 app = web.Application()
 app.router.add_get('/', handle)
 

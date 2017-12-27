@@ -14,8 +14,10 @@ scheduler = AsyncIOScheduler(timezone="UTC")
 scheduler.add_job(store.cleanup_db, 'interval', seconds=15)
 scheduler.start()
 
-mgr = socketio.AsyncRedisManager(os.getenv('REDIS_URL', 'redis://redis:6379/0'))
-sio = socketio.AsyncServer(async_mode='aiohttp', client_manager=mgr)
+# mgr = socketio.AsyncRedisManager(os.getenv('REDIS_URL', 'redis://redis:6379/0'))
+sio = socketio.AsyncServer(async_mode='aiohttp'
+                           # , client_manager=mgr
+                           )
 app = web.Application()
 sio.attach(app)
 

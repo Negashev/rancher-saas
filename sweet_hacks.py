@@ -23,3 +23,12 @@ def last_modify_file(dirname="."):
             if file_time > newer_time:
                 newer_file, newer_time = file_path, file_time
     return newer_file, newer_time
+
+
+def get_size(start_path='.', conversion=1e-9):
+    total_size = 0
+    for dirpath, dirnames, filenames in os.walk(start_path):
+        for f in filenames:
+            fp = os.path.join(dirpath, f)
+            total_size += os.path.getsize(fp)
+    return total_size * conversion
