@@ -17,48 +17,6 @@ from sweet_hacks import mkdir_with_chmod, get_dirs, last_modify_file, get_size
 
 mount_lock = False
 '''
-    Create source cast
-'''
-
-
-def create_source_cast():
-    global lock
-    tmp_path = mkdir_with_chmod(os.path.join(os.getenv('DATA_DIR'), 'tmp'))
-    source_cast_path = mkdir_with_chmod(os.path.join(os.getenv('DATA_DIR'), 'source'))
-    source_remote_path = mkdir_with_chmod(os.getenv('SOURCE_DIR'))
-    this_time = time.time()
-    # if source data not ready
-    newer_file, newer_time = last_modify_file(source_remote_path)
-    if newer_time and this_time - newer_time < 20.0:
-        return
-
-    # check if we new update or create data
-    if os.path.exists(os.path.join(source_cast_path, '.uuid')):
-        with open(os.path.join(source_remote_path, '.uuid'), 'r') as source:
-            source_remote_uuid = source.read()
-        with open(os.path.join(source_cast_path, '.uuid'), 'r') as source:
-            source_cast_uuid = source.read()
-        if source_cast_uuid != source_remote_uuid:
-            lock = True
-    else:
-        lock = True
-    if not lock:
-        return
-    new_dir = str(uuid.uuid4())
-    new_tmp_dir = os.path.join(tmp_path, new_dir)
-    print(f"create cast {new_tmp_dir}")
-    # copy data
-    shutil.copytree(source_remote_path, new_tmp_dir)
-    os.chmod(new_tmp_dir, 0o777)
-    # move data!
-    lock = True
-    shutil.move(source_cast_path, os.path.join(tmp_path, str(uuid.uuid4())))
-    print(f"move {new_tmp_dir} {source_cast_path}")
-    shutil.move(new_tmp_dir, source_cast_path)
-    lock = False
-
-
-'''
     Create all blanks
 '''
 
@@ -115,37 +73,38 @@ def check_blanks():
     # get ready blanks
     blanks_dirs = get_dirs(blanks_path)
     remove_uuid = None
-    with open(os.path.join(source_path, '.uuid'), 'r') as source:
-        source_uuid = source.read()
-        for blank_dir in blanks_dirs:
-            if remove_uuid is not None:
-                break
+
+    newer_file, newer_time = last_modify_file(source_path)
+    if newer_time is None:
+        return
+    if this_time - newer_time < 60.0:
+        return
+    # check all blanks
+    for blank_dir in blanks_dirs:
+        if remove_uuid is not None:
+            break
+        try:
+            # if this cold dir
+            newer_file, newer_time = last_modify_file(blank_dir)
+            if newer_time is None:
+                continue
+            if this_time - newer_time < 60.0:
+                continue
+            # if size not valid
+            if get_size(source_path) != get_size(blank_dir):
+                remove_uuid = blank_dir
+        except Exception as e:
+            print(e)
             try:
-                with open(os.path.join(blank_dir, '.uuid'), 'r') as f:
-                    blank_uuid = f.read()
-                    # if this cold dir
-                    newer_file, newer_time = last_modify_file(blank_dir)
-                    if newer_time is None:
-                        continue
-                    if this_time - newer_time < 60.0:
-                        continue
-                    # if uuid update (new source data)
-                    if source_uuid != blank_uuid:
-                        remove_uuid = blank_dir
-                    # if size not valid
-                    if get_size(source_path) != get_size(blank_dir):
-                        remove_uuid = blank_dir
+                # if this broken blank remove them
+                newer_file, newer_time = last_modify_file(blank_dir)
+                if newer_time is None:
+                    continue
+                if this_time - newer_time < 60.0:
+                    continue
+                remove_uuid = blank_dir
             except Exception as e:
                 print(e)
-                try:
-                    # if this broken blank remove them
-                    newer_file, newer_time = last_modify_file(blank_dir)
-                    if newer_time is None:
-                        continue
-                    if this_time - newer_time > 60.0:
-                        remove_uuid = blank_dir
-                except Exception as e:
-                    print(e)
     if remove_uuid is not None:
         uuid = os.path.basename(remove_uuid)
         print(f'remove {uuid}')
@@ -294,7 +253,6 @@ store = IgniteStorage(os.getenv('IGNITE_HOST', 'ignite'))
 store.create_db()
 
 scheduler = AsyncIOScheduler(timezone="UTC")
-# scheduler.add_job(create_source_cast, 'interval', seconds=30)
 scheduler.add_job(create_blanks, 'interval', seconds=10)
 scheduler.add_job(check_blanks, 'interval', seconds=10)
 scheduler.add_job(clean_tmp, 'interval', seconds=30)

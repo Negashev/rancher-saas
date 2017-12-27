@@ -19,7 +19,7 @@ services:
       - 2181:2181
   source-cloner:
     image: minio/mc
-    command: mirror --overwrite --remove /source/ /data/source
+    command: mirror --overwrite --watch --remove /source/ /data/source
     volumes:
       - ./tmp/worker:/data
       - ./tmp/remote_source:/source
