@@ -44,7 +44,7 @@ class ChatNamespace(BaseNamespace):
         else:
             print('Waiting directory')
             # if you don't trust for redis :)
-            # self.emit('waiting', {'uuid': data['uuid']})
+            self.emit('waiting', {'uuid': data['uuid']})
 
     def on_waiting(self, data):
         if data['address'] is None:
@@ -71,5 +71,6 @@ if os.path.isfile('/tmp/envoy.conf'):
     print("Found proxy config, try connect to service")
     chat_namespace.emit('health check', get_service_address())
 else:
+    print("Start delivery")
     chat_namespace.emit('get uuid')
 socketIO.wait()
