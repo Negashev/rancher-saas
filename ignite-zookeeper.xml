@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+        <beans xmlns="http://www.springframework.org/schema/beans" xmlns:cache="http://www.springframework.org/schema/cache" xmlns:context="http://www.springframework.org/schema/context" xmlns:mvc="http://www.springframework.org/schema/mvc" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="         http://www.springframework.org/schema/beans         http://www.springframework.org/schema/beans/spring-beans.xsd         http://www.springframework.org/schema/cache         http://www.springframework.org/schema/cache/spring-cache-3.1.xsd         http://www.springframework.org/schema/context         http://www.springframework.org/schema/context/spring-context.xsd ">
+           <bean class="org.apache.ignite.configuration.IgniteConfiguration">
+              <!-- Enabling Redis. -->
+              <property name="connectorConfiguration">
+                 <bean class="org.apache.ignite.configuration.ConnectorConfiguration">
+                    <property name="port" value="6379" />
+                 </bean>
+              </property>
+              <property name="cacheConfiguration">
+                 <list>
+                    <!-- for Redis Partitioned cache example configuration (Atomic mode). -->
+                    <bean class="org.apache.ignite.configuration.CacheConfiguration">
+                       <property name="name" value="default" />
+                       <property name="atomicityMode" value="ATOMIC" />
+                       <property name="backups" value="2" />
+                    </bean>
+                 </list>
+              </property>
+              <property name="discoverySpi">
+                 <bean class="org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi">
+                    <property name="ipFinder">
+                       <bean class="org.apache.ignite.spi.discovery.tcp.ipfinder.zk.TcpDiscoveryZookeeperIpFinder">
+                          <property name="allowDuplicateRegistrations" value="false" />
+                          <property name="basePath" value="/ignite" />
+                          <property name="serviceName" value="ignite" />
+                          <property name="zkConnectionString" value="zk.zookeeper.rancher.internal:2181" />
+                       </bean>
+                    </property>
+                 </bean>
+              </property>
+           </bean>
+        </beans>

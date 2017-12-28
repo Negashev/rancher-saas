@@ -5,14 +5,15 @@ services:
     ports:
       - 6379:6379
   ignite:
-    image: apacheignite/ignite
+    image: apacheignite/ignite:2.3.0
     environment:
-      OPTION_LIBS: ignite-rest-http
-      CONFIG_URI: https://raw.githubusercontent.com/apache/ignite/master/examples/config/example-cache.xml
-    ports:
-      - 8082:8080
-      - 10800:10800
-      - 11211:11211
+      JVM_OPTS: -XX:+UseG1GC
+      OPTION_LIBS: ignite-zookeeper,ignite-rest-http
+      CONFIG_URI: /src/ignite-zookeeper.xml
+    links:
+      - zookeeper:zk.zookeeper.rancher.internal
+    volumes:
+      - ./:/src
   zookeeper:
     image: zookeeper
     ports:

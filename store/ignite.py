@@ -21,7 +21,6 @@ class IgniteStorage(BaseStorage):
 
     def __init__(self, host='localhost', port=8080, scheme='http', api_endpoint='ignite'):
         self.driver = IgniteClientPy3(host=host, port=port, scheme=scheme, api_endpoint=api_endpoint)
-        self.driver.get_or_create_cache(self.schema)
 
     def drop_db(self):
         self.driver.qryfldexe(f'''
