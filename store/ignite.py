@@ -1,3 +1,4 @@
+import os
 import requests
 import urllib
 
@@ -13,7 +14,8 @@ class IgniteClientPy3(IgniteClient):
         params = urllib.parse.urlencode(
             {k: v for k, v in iter(params.items()) if k and v})
         return requests.get(
-            '{endpoint}?cmd={command}&{params}'.format(endpoint=self._endpoint, command=cmd, params=params)).json()
+            '{endpoint}?cmd={command}&{params}'.format(endpoint=self._endpoint, command=cmd, params=params),
+            timeout=int(os.getenv("IGNITE_TIMEOUT", 10))).json()
 
 
 class IgniteStorage(BaseStorage):
