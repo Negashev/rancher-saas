@@ -12,9 +12,16 @@ class ChatNamespace(BaseNamespace):
         sleep(10)
         chat_namespace.emit('ping', address)
 
+    def on_ping_tmp(self, address):
+        sleep(10)
+        chat_namespace.emit('ping tmp', address)
+
 
 socketIO = SocketIO(os.getenv('SAAS_DELIVERY_URL', '10.100.31.41'), int(os.getenv('SAAS_DELIVERY_PORT', 8080)))
 chat_namespace = socketIO.define(ChatNamespace, '/saas')
 
-chat_namespace.emit('ping', get_service_address())
+if 'PING_TMP' in os.environ:
+    chat_namespace.emit('ping tmp', get_service_address())
+else:
+    chat_namespace.emit('ping', get_service_address())
 socketIO.wait()

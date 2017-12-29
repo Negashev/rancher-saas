@@ -179,3 +179,10 @@ class IgniteStorage(BaseStorage):
             SET uptime=NOW()
             WHERE address = '{address}'
             ''', 1)
+
+    def ping_tmp_address(self, address):
+        return self.driver.qryfldexe(f'''
+            UPDATE {self.prefix}.delivery_dirs
+            SET uptime=DATEADD('MINUTE', -55, NOW())
+            WHERE address = '{address}'
+            ''', 1)

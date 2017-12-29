@@ -63,6 +63,11 @@ async def saas_ping(sid, address):
     store.ping_address(address)
     await sio.emit('ping', address, room=sid, namespace='/saas')
 
+@sio.on('ping tmp', namespace='/saas')
+async def saas_ping(sid, address):
+    store.ping_tmp_address(address)
+    await sio.emit('ping tmp', address, room=sid, namespace='/saas')
+
 
 @sio.on('disconnect', namespace='/saas')
 async def saas_disconnect(sid):
