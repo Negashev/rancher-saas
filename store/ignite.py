@@ -37,7 +37,7 @@ class IgniteStorage(BaseStorage):
         dirType VARCHAR,
         time TIMESTAMP
         )
-        WITH "template=replicated,backups=2,ATOMICITY=TRANSACTIONAL"
+        WITH "template=replicated"
             ''', 1)
         self.driver.qryfldexe(f'''
         CREATE INDEX IF NOT EXISTS htt_idx ON {self.prefix}.server_dirs (dirType, time)
@@ -54,7 +54,7 @@ class IgniteStorage(BaseStorage):
         delivery VARCHAR,
         address VARCHAR        
         )
-        WITH "template=replicated,backups=2,ATOMICITY=TRANSACTIONAL"
+        WITH "template=replicated"
             ''', 1)
         self.driver.qryfldexe(f'''
         CREATE INDEX IF NOT EXISTS delivery_idx ON {self.prefix}.delivery_dirs (delivery)
