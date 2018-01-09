@@ -54,12 +54,8 @@ class ChatNamespace(BaseNamespace):
         else:
             print(f"Service address {data['address']}")
             check_open_port(data['address'])
-            envoy_source = json.load(open('/src/envoy.conf'))
-            envoy_source['listeners'][0]['address'] = os.getenv('PROXY_ADDR', "tcp://0.0.0.0:80")
-            envoy_source['cluster_manager']['clusters'][0]['hosts'][0]['url'] = \
-                f"{os.getenv('SAAS_PROTOCOL', 'tcp://')}{data['address']}"
-            with open('/tmp/envoy.conf', 'w') as f:
-                json.dump(envoy_source, f)
+            with open('/tmp/proxy.file', 'w') as f:
+                f.write(data['address'])
             exit(0)
 
 
@@ -67,7 +63,12 @@ socketIO = SocketIO(os.getenv('SAAS_DELIVERY_URL', '10.100.31.41'), int(os.geten
 chat_namespace = socketIO.define(ChatNamespace, '/saas')
 
 # check local save file and ping service if exist
-if os.path.isfile('/tmp/envoy.conf'):
+with open('/tmp/local.file', 'w') as local:
+    PROXY_ADDR = os.getenv("PROXY_ADDR", "0.0.0.0:80")
+    if PROXY_ADDR.startswith("tcp://"):
+        PROXY_ADDR = PROXY_ADDR[len("tcp://"):]
+    local.write(PROXY_ADDR)
+if os.path.isfile('/tmp/proxy.file'):
     print("Found proxy config, try connect to service")
     chat_namespace.emit('health check', get_service_address())
 else:
