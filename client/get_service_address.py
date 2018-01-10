@@ -8,5 +8,5 @@ def get_service_address(file_path='/tmp/proxy.file'):
         service_address = os.getenv('SERVICE_ADDR')
     else:
         f = open(file_path, 'r')
-        service_address = f.read(1)
+        service_address = f.read()
     return service_address
