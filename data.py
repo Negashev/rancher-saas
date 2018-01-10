@@ -19,6 +19,14 @@ mount_lock = False
 '''
     Create all blanks
 '''
+copyfileobj_orig = shutil.copyfileobj
+
+
+def copyfileobj(fsrc, fdst, length=int(os.getenv("COPY_BUFFER", 16)) * 1024 * 1024):
+    return copyfileobj_orig(fsrc, fdst, length)
+
+
+shutil.copyfileobj = copyfileobj
 
 
 def create_blanks():
