@@ -17,11 +17,13 @@ class ChatNamespace(BaseNamespace):
         chat_namespace.emit('ping tmp', address)
 
 
-socketIO = SocketIO(os.getenv('SAAS_DELIVERY_URL', '10.100.31.41'), int(os.getenv('SAAS_DELIVERY_PORT', 8080)))
-chat_namespace = socketIO.define(ChatNamespace, '/saas')
+while True:
+    socketIO = SocketIO(os.getenv('SAAS_DELIVERY_URL', '10.100.31.41'), int(os.getenv('SAAS_DELIVERY_PORT', 8080)))
+    chat_namespace = socketIO.define(ChatNamespace, '/saas')
 
-if 'PING_TMP' in os.environ:
-    chat_namespace.emit('ping tmp', get_service_address())
-else:
-    chat_namespace.emit('ping', get_service_address())
-socketIO.wait()
+    if 'PING_TMP' in os.environ:
+        chat_namespace.emit('ping tmp', get_service_address())
+    else:
+        chat_namespace.emit('ping', get_service_address())
+    socketIO.wait(seconds=60)
+    print("reconnect ping service")
