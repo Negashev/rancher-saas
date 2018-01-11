@@ -21,12 +21,30 @@ mount_lock = False
 '''
 copyfileobj_orig = shutil.copyfileobj
 
-
-def copyfileobj(fsrc, fdst, length=int(os.getenv("COPY_BUFFER", 16)) * 1024 * 1024):
-    return copyfileobj_orig(fsrc, fdst, length)
+SLEEP_TIME = int(os.getenv("SLEEP_TIME", 0.2))
 
 
-shutil.copyfileobj = copyfileobj
+def recursive_copy_and_sleep(source_folder, destination_folder):
+    "Copies files from `SOURCE` one at a time to `TARGET`, sleeping in between operations"
+    for root, dirs, files in os.walk(source_folder):
+        for item in files:
+            src_path = os.path.join(root, item)
+            dst_path = os.path.join(destination_folder, src_path.replace(source_folder, "")[1:])
+            time.sleep(SLEEP_TIME)
+            if os.path.exists(dst_path):
+                if os.stat(src_path).st_mtime > os.stat(dst_path).st_mtime:
+                    # print("Copying %s to %s" % (src_path, dst_path))
+                    shutil.copy2(src_path, dst_path)
+            else:
+                # print("Copying %s to %s" % (src_path, dst_path))
+                shutil.copy2(src_path, dst_path)
+        for item in dirs:
+            src_path = os.path.join(root, item)
+            dst_path = os.path.join(destination_folder, src_path.replace(source_folder, "")[1:])  # Lop off leading slash, otherwise the directory maker gets confused
+            if not os.path.exists(dst_path):
+                # print("Making %s" % dst_path)
+                os.mkdir(dst_path)  #
+    return True
 
 
 def create_blanks():
@@ -55,7 +73,8 @@ def create_blanks():
     new_path = os.path.join(blanks_path, new_dir)
     print(f"create {new_tmp_dir}")
     # copy data
-    shutil.copytree(source_path, new_tmp_dir)
+    # shutil.copytree(source_path, new_tmp_dir)
+    recursive_copy_and_sleep(source_path, mkdir_with_chmod(new_tmp_dir))
     os.chmod(new_tmp_dir, 0o777)
     if get_size(source_path) == get_size(new_tmp_dir):
         # move data!
