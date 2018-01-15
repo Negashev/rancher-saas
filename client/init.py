@@ -82,5 +82,10 @@ while delivery:
     else:
         print("Start delivery")
         chat_namespace.emit('get uuid')
-    socketIO.wait(120)
-    print('Did not wait for service, retry')
+    if delivery:
+        socketIO.wait(300)
+        print('Did not wait for service, retry')
+        sleep(5)
+        delivery = True
+    else:
+        socketIO.wait()
