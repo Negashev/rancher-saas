@@ -3,16 +3,11 @@ import uuid
 
 import socketio
 from aiohttp import web
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from store.ignite import IgniteStorage
 
 store = IgniteStorage(os.getenv('IGNITE_HOST', 'ignite'))
 store.create_db()
-
-scheduler = AsyncIOScheduler(timezone="UTC")
-scheduler.add_job(store.cleanup_db, 'interval', seconds=15)
-scheduler.start()
 
 # mgr = socketio.AsyncRedisManager(os.getenv('REDIS_URL', 'redis://redis:6379/0'))
 sio = socketio.AsyncServer(async_mode='aiohttp'
@@ -23,9 +18,7 @@ sio.attach(app)
 
 
 async def handle(request):
-    name = request.match_info.get('name', "Anonymous")
-    text = "Hello, " + name
-    return web.Response(text=text)
+    return web.json_response(store.driver.qryfldexe("SELECT directory FROM {store.prefix}.delivery_dirs", 100)['items'])
 
 
 async def delivery(request):
