@@ -18,7 +18,7 @@ sio.attach(app)
 
 
 async def handle(request):
-    return web.json_response(store.driver.qryfldexe("SELECT directory FROM {store.prefix}.delivery_dirs", 100)['items'])
+    return web.json_response(store.driver.qryfldexe(f"SELECT directory FROM {store.prefix}.delivery_dirs", 100)['items'])
 
 
 async def delivery(request):
