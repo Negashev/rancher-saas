@@ -72,20 +72,23 @@ with open('/tmp/local.file', 'w') as local:
     local.write(PROXY_ADDR)
 
 while delivery:
-    print("Connecting to delivery service")
-    socketIO = SocketIO(os.getenv('SAAS_DELIVERY_URL', '10.100.31.41'), int(os.getenv('SAAS_DELIVERY_PORT', 8080)))
-    chat_namespace = socketIO.define(ChatNamespace, '/saas')
-    print("Success connect")
-    if os.path.isfile('/tmp/proxy.file'):
-        print("Found proxy config, try connect to service")
-        chat_namespace.emit('health check', get_service_address())
-    else:
-        print("Start delivery")
-        chat_namespace.emit('get uuid')
-    if delivery:
-        socketIO.wait(300)
-        print('Did not wait for service, retry')
-        sleep(5)
-        delivery = True
-    else:
-        socketIO.wait()
+    try:
+        print("Connecting to delivery service")
+        socketIO = SocketIO(os.getenv('SAAS_DELIVERY_URL', '10.100.31.41'), int(os.getenv('SAAS_DELIVERY_PORT', 8080)))
+        chat_namespace = socketIO.define(ChatNamespace, '/saas')
+        print("Success connect")
+        if os.path.isfile('/tmp/proxy.file'):
+            print("Found proxy config, try connect to service")
+            chat_namespace.emit('health check', get_service_address())
+        else:
+            print("Start delivery")
+            chat_namespace.emit('get uuid')
+        if delivery:
+            socketIO.wait(300)
+            print('Did not wait for service, retry')
+            sleep(5)
+            delivery = True
+        else:
+            socketIO.wait()
+    except Exception as e:
+        print(e)
