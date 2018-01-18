@@ -1,5 +1,4 @@
 import os
-import json
 import socket
 from time import sleep
 
@@ -10,18 +9,20 @@ from get_service_address import get_service_address
 delivery = True
 
 
-def check_open_port(address):
+def check_open_port(address, kill_proxy=True, wait_time=30):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     host, port = address.split(':')
-    for i in range(int(os.getenv('WAITING_TIME', 30))):
+    for i in range(int(os.getenv('WAITING_TIME', wait_time))):
         result = sock.connect_ex((host, int(port)))
         # if port is open save file! and start work proxy
         print(f'Ping service port {i} seconds')
         if result == 0:
-            return
+            return True
         sleep(1)
-    # if port not open, kill service
-    exit('Service not healthy')
+    # if port not open, kill proxy
+    if kill_proxy:
+        print('Service not healthy')
+        exit(1)
 
 
 class ChatNamespace(BaseNamespace):
@@ -29,11 +30,11 @@ class ChatNamespace(BaseNamespace):
     def on_health_check(self, uuid):
         global delivery
         if uuid:
-            exit(0)
-        else:
-            delivery = False
-            print("You old service not found")
-            chat_namespace.emit('get uuid')
+            if check_open_port(get_service_address(), kill_proxy=False, wait_time=1):
+                exit(0)
+        delivery = False
+        print("You old service not found")
+        chat_namespace.emit('get uuid')
 
     def on_set_uuid(self, uuid):
         global delivery
@@ -63,6 +64,8 @@ class ChatNamespace(BaseNamespace):
                 f.write(data['address'])
             exit(0)
 
+
+print('Run connector')
 
 # check local save file and ping service if exist
 with open('/tmp/local.file', 'w') as local:

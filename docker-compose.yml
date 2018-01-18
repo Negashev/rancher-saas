@@ -1,9 +1,5 @@
 version: '2'
 services:
-  redis:
-    image: redis:alpine
-    ports:
-      - 6379:6379
   ignite:
     image: apacheignite/ignite:2.3.0
     environment:
@@ -24,22 +20,23 @@ services:
     volumes:
       - ./tmp/worker:/data
       - ./tmp/remote_source:/source
-  redis-ui:
-    image: ficusio/redis-commander:latest
-    command:  --redis-host redis --redis-port 6379
-    links:
-      - redis:redis
+  nats-1:
+    image: nats
+    command: -p 4222 --http_port 8080 -cluster nats://0.0.0.0:5222 -routes nats://nats-2:5222,nats://nats-3:5222 -D
     ports:
-      - 8081:8081
-#  worker:
-#    build: ./
-#    command:
-#      aiotasks
-#      -vvvv
-#      worker
-#      -A
-#      worker/app
-#    links:
-#      - redis:redis
-#      - zookeeper:zookeeper
-#      - ignite:ignite
+      - 8080
+  nats-2:
+    image: nats
+    command: -p 4222 --http_port 8080 -cluster nats://0.0.0.0:5222 -routes nats://nats-1:5222,nats://nats-3:5222 -D
+    ports:
+      - 8080
+  nats-3:
+    image: nats
+    command: -p 4222 --http_port 8080 -cluster nats://0.0.0.0:5222 -routes nats://nats-1:5222,nats://nats-2:5222 -D
+    ports:
+      - 8080
+  nats:
+    image: nats
+    command: -p 4222 --http_port 8080 -cluster nats://0.0.0.0:5222 -routes nats://nats-1:5222,nats://nats-2:5222,nats://nats-3:5222 -D
+    ports:
+      - 8080
