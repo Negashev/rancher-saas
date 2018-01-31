@@ -66,6 +66,11 @@ class ChatNamespace(BaseNamespace):
 
 
 print('Run connector')
+#
+if 'INHERITED_SERVICE_ADDR' in os.environ:
+    print("Try use inherited service address")
+    with open('/tmp/proxy.file', 'w') as f:
+        f.write(os.getenv('INHERITED_SERVICE_ADDR'))
 
 # check local save file and ping service if exist
 with open('/tmp/local.file', 'w') as local:
