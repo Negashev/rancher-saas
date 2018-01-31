@@ -16,7 +16,8 @@ class ElasticsearchStorage(BaseStorage):
                 "number_of_replicas": os.getenv("number_of_replicas", "2"),
                 "store": {
                     "type": "mmapfs"
-                }
+                },
+                "blocks": {"read_only_allow_delete": None}
             }
         }
     }
