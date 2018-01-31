@@ -373,7 +373,9 @@ class ElasticsearchStorage(BaseStorage):
                                                }
                                            }, ignore_unavailable=True)
 
-    def ping_address(self, address, uptime=int(time.time())):
+    def ping_address(self, address, uptime=None):
+        if uptime is None:
+            uptime = int(time.time())
         query = {
             "query": {
                 "bool": {
