@@ -67,7 +67,8 @@ class ChatNamespace(BaseNamespace):
 
 print('Run connector')
 #
-if 'INHERITED_SERVICE_ADDR' in os.environ:
+INHERITED_SERVICE_ADDR = os.getenv("INHERITED_SERVICE_ADDR", "")
+if INHERITED_SERVICE_ADDR != "":
     print("Try use inherited service address")
     with open('/tmp/proxy.file', 'w') as f:
         f.write(os.getenv('INHERITED_SERVICE_ADDR'))
