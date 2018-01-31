@@ -157,6 +157,9 @@ class IgniteStorage(BaseStorage):
             return [i[0] for i in data['items']]
         return []
 
+    def get_all_mounted(self):
+        return self.driver.qryfldexe(f"SELECT directory FROM {self.prefix}.delivery_dirs", 100)['items']
+
     def get_sleep_mounted(self, directories):
         directories_string = "', '".join(directories)
         data = self.driver.qryfldexe(f'''

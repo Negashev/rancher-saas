@@ -4,9 +4,11 @@ import uuid
 import socketio
 from aiohttp import web
 
-from store.ignite import IgniteStorage
+# from store.ignite import IgniteStorage
+from store.es import ElasticsearchStorage
 
-store = IgniteStorage(os.getenv('IGNITE_HOST', 'ignite'))
+# store = IgniteStorage(os.getenv('IGNITE_HOST', 'ignite'))
+store = ElasticsearchStorage()
 store.create_db()
 
 # mgr = socketio.AsyncRedisManager(os.getenv('REDIS_URL', 'redis://redis:6379/0'))
@@ -18,7 +20,7 @@ sio.attach(app)
 
 
 async def handle(request):
-    return web.json_response(store.driver.qryfldexe(f"SELECT directory FROM {store.prefix}.delivery_dirs", 100)['items'])
+    return web.json_response(store.get_all_mounted())
 
 
 async def delivery(request):

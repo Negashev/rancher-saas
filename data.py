@@ -13,6 +13,7 @@ from aiodocker.exceptions import DockerError
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from store.ignite import IgniteStorage
+from store.es import ElasticsearchStorage
 from sweet_hacks import mkdir_with_chmod, get_dirs, last_modify_file, get_size
 
 mount_lock = False
@@ -276,7 +277,8 @@ async def handle(request):
 
 
 docker = Docker()
-store = IgniteStorage(os.getenv('IGNITE_HOST', 'ignite'))
+# store = IgniteStorage(os.getenv('IGNITE_HOST', 'ignite'))
+store = ElasticsearchStorage()
 store.create_db()
 
 scheduler = AsyncIOScheduler(timezone="UTC")
@@ -284,7 +286,6 @@ scheduler.add_job(create_blanks, 'interval', seconds=10)
 scheduler.add_job(check_blanks, 'interval', seconds=10)
 scheduler.add_job(clean_tmp, 'interval', seconds=30)
 scheduler.add_job(store_dirs, 'interval', seconds=1)
-scheduler.add_job(store.cleanup_db, 'interval', seconds=15)
 scheduler.add_job(check_for_create_service_with_storage, 'interval', seconds=2)
 scheduler.add_job(check_for_delete_storage_with_service, 'interval', seconds=30)
 scheduler.start()

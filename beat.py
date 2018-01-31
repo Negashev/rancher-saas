@@ -4,9 +4,11 @@ import socketio
 from aiohttp import web
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
+from store.es import ElasticsearchStorage
 from store.ignite import IgniteStorage
 
-store = IgniteStorage(os.getenv('IGNITE_HOST', 'ignite'))
+# store = IgniteStorage(os.getenv('IGNITE_HOST', 'ignite'))
+store = ElasticsearchStorage()
 store.create_db()
 
 scheduler = AsyncIOScheduler(timezone="UTC")

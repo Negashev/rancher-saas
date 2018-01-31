@@ -1,42 +1,73 @@
 version: '2'
 services:
-  ignite:
-    image: apacheignite/ignite:2.3.0
-    environment:
-      JVM_OPTS: -XX:+UseG1GC
-      OPTION_LIBS: ignite-zookeeper,ignite-rest-http
-      CONFIG_URI: /src/ignite-zookeeper.xml
-    links:
-      - zookeeper:zk.zookeeper.rancher.internal
-    volumes:
-      - ./:/src
-  zookeeper:
-    image: zookeeper
-    ports:
-      - 2181:2181
   source-cloner:
     image: minio/mc
     command: mirror --overwrite --watch --remove /source/ /data/source
     volumes:
       - ./tmp/worker:/data
       - ./tmp/remote_source:/source
-  nats-1:
-    image: nats
-    command: -p 4222 --http_port 8080 -cluster nats://0.0.0.0:5222 -routes nats://nats-2:5222,nats://nats-3:5222 -D
+#  ignite:
+#    image: apacheignite/ignite:2.3.0
+#    environment:
+#      JVM_OPTS: -XX:+UseG1GC
+#      OPTION_LIBS: ignite-zookeeper,ignite-rest-http
+#      CONFIG_URI: /src/ignite-zookeeper.xml
+#    links:
+#      - zookeeper:zk.zookeeper.rancher.internal
+#    volumes:
+#      - ./:/src
+#  zookeeper:
+#    image: zookeeper
+#    ports:
+#      - 2181:2181
+#  nats-1:
+#    image: nats
+#    command: -p 4222 --http_port 8080 -cluster nats://0.0.0.0:5222 -routes nats://nats-2:5222,nats://nats-3:5222 -D
+#    ports:
+#      - 8080
+#  nats-2:
+#    image: nats
+#    command: -p 4222 --http_port 8080 -cluster nats://0.0.0.0:5222 -routes nats://nats-1:5222,nats://nats-3:5222 -D
+#    ports:
+#      - 8080
+#  nats-3:
+#    image: nats
+#    command: -p 4222 --http_port 8080 -cluster nats://0.0.0.0:5222 -routes nats://nats-1:5222,nats://nats-2:5222 -D
+#    ports:
+#      - 8080
+#  nats:
+#    image: nats
+#    command: -p 4222 --http_port 8080 -cluster nats://0.0.0.0:5222 -routes nats://nats-1:5222,nats://nats-2:5222,nats://nats-3:5222 -D
+#    ports:
+#      - 8080
+  es:
+    image: docker.elastic.co/elasticsearch/elasticsearch:6.1.2
+    environment:
+      ES_JAVA_OPTS: -Xms1g -Xmx1g
+      discovery.zen.ping.unicast.hosts: es
+      node.name: $${HOSTNAME}
+      xpack.security.enabled: 'false'
+  cerebro:
+    image: yannart/cerebro
     ports:
-      - 8080
-  nats-2:
-    image: nats
-    command: -p 4222 --http_port 8080 -cluster nats://0.0.0.0:5222 -routes nats://nats-1:5222,nats://nats-3:5222 -D
+      - 9000:9000
+    links:
+    - es:es
+  kibana:
+    image: docker.elastic.co/kibana/kibana:6.1.2
+    environment:
+      ELASTICSEARCH_URL: http://es:9200
+      xpack.monitoring.ui.container.elasticsearch.enabled: 'false'
+      xpack.security.enabled: 'false'
     ports:
-      - 8080
-  nats-3:
-    image: nats
-    command: -p 4222 --http_port 8080 -cluster nats://0.0.0.0:5222 -routes nats://nats-1:5222,nats://nats-2:5222 -D
-    ports:
-      - 8080
-  nats:
-    image: nats
-    command: -p 4222 --http_port 8080 -cluster nats://0.0.0.0:5222 -routes nats://nats-1:5222,nats://nats-2:5222,nats://nats-3:5222 -D
-    ports:
-      - 8080
+      - 5601:5601
+    links:
+    - es:es
+  sysctl:
+    privileged: true
+    image: alpine
+    network_mode: none
+    command:
+    - sysctl
+    - -w
+    - vm.max_map_count=262144
