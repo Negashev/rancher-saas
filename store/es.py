@@ -24,7 +24,7 @@ class ElasticsearchStorage(BaseStorage):
     def __init__(self, hosts=os.getenv("ES_HOST", None), **kwargs):
         if hosts is None:
             hosts = ['http://es']
-        self.driver = Elasticsearch(hosts=hosts, **kwargs)
+        self.driver = Elasticsearch(hosts=hosts, timeout=int(os.getenv("ES_TIMEOUT", 10)), **kwargs)
 
     def drop_db(self):
         self.driver.indices.delete(f"{self.prefix}-server-dirs")
