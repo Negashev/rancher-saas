@@ -1,15 +1,16 @@
 import os
 import time
 from datetime import datetime
-from elasticsearch import Elasticsearch
-from elasticsearch import helpers
+from elasticsearch import Elasticsearch, helpers, exceptions
 
 from store.base import BaseStorage
 
 
 class ElasticsearchStorage(BaseStorage):
     prefix = os.getenv('PREFIX_STORAGE', 'maas')
+    postfix = os.getenv('POSTFIX_STORAGE', '')
     mapping = {
+        "index_patterns": [f"{prefix}-server-dirs*", f"{prefix}-delivery-dirs*"],
         "settings": {
             "index": {
                 "number_of_shards": os.getenv("number_of_shards", "2"),
@@ -28,20 +29,20 @@ class ElasticsearchStorage(BaseStorage):
         self.driver = Elasticsearch(hosts=hosts, timeout=int(os.getenv("ES_TIMEOUT", 10)), **kwargs)
 
     def drop_db(self):
-        self.driver.indices.delete(f"{self.prefix}-server-dirs")
-        self.driver.indices.delete(f"{self.prefix}-delivery-dirs")
+        self.driver.indices.delete(f"{self.prefix}-server-dirs{self.postfix}")
+        self.driver.indices.delete(f"{self.prefix}-delivery-dirs{self.postfix}")
 
     def create_db(self):
-        if not self.driver.indices.exists(f"{self.prefix}-server-dirs"):
-            res = self.driver.indices.create(index=f"{self.prefix}-server-dirs", ignore=400, body=self.mapping)
+        if not self.driver.indices.exists_template(f"{self.prefix}-server-dirs"):
+            res = self.driver.indices.put_template(f"{self.prefix}-server-dirs", body=self.mapping)
             print(res)
-        if not self.driver.indices.exists(f"{self.prefix}-delivery-dirs"):
-            res = self.driver.indices.create(index=f"{self.prefix}-delivery-dirs", ignore=400, body=self.mapping)
+        if not self.driver.indices.exists_template(f"{self.prefix}-delivery-dirs"):
+            res = self.driver.indices.put_template(f"{self.prefix}-delivery-dirs", body=self.mapping)
             print(res)
 
     def cleanup_db(self):
         self_time = int(time.time())
-        self.driver.delete_by_query(index=f"{self.prefix}-server-dirs",
+        self.driver.delete_by_query(index=f"{self.prefix}-server-dirs{self.postfix}",
                                     body={
                                         "query": {
                                             "bool": {
@@ -64,7 +65,7 @@ class ElasticsearchStorage(BaseStorage):
                                             }
                                         }
                                     })
-        self.driver.delete_by_query(index=f"{self.prefix}-delivery-dirs",
+        self.driver.delete_by_query(index=f"{self.prefix}-delivery-dirs{self.postfix}",
                                     body={
                                         "query": {
                                             "bool": {
@@ -90,7 +91,8 @@ class ElasticsearchStorage(BaseStorage):
 
     def set_dir(self, directory, hostname, dirType, self_time):
         return helpers.bulk(self.driver,
-                            self._yield_set_dirs(f"{self.prefix}-server-dirs", [directory], hostname, dirType,
+                            self._yield_set_dirs(f"{self.prefix}-server-dirs{self.postfix}", [directory], hostname,
+                                                 dirType,
                                                  self_time),
                             refresh=True)
 
@@ -98,7 +100,8 @@ class ElasticsearchStorage(BaseStorage):
         if not directories:
             return None
         return helpers.bulk(self.driver,
-                            self._yield_set_dirs(f"{self.prefix}-server-dirs", directories, hostname, dirType,
+                            self._yield_set_dirs(f"{self.prefix}-server-dirs{self.postfix}", directories, hostname,
+                                                 dirType,
                                                  self_time),
                             refresh=True)
 
@@ -150,10 +153,10 @@ class ElasticsearchStorage(BaseStorage):
                 }
             }
             data = self.driver.create(
-                index=f"{self.prefix}-delivery-dirs",
+                index=f"{self.prefix}-delivery-dirs{self.postfix}",
                 doc_type="document",
                 id=self.driver.search(
-                    index=f"{self.prefix}-server-dirs",
+                    index=f"{self.prefix}-server-dirs{self.postfix}",
                     filter_path=['hits.hits._id'],
                     body=query,
                     size=1)['hits']['hits'][0]['_id'],
@@ -190,7 +193,7 @@ class ElasticsearchStorage(BaseStorage):
             }
         }
         data = self.driver.search(
-            index=f"{self.prefix}-delivery-dirs",
+            index=f"{self.prefix}-delivery-dirs{self.postfix}",
             filter_path=['hits.hits._source.address'],
             body=query,
             size=1)
@@ -221,7 +224,7 @@ class ElasticsearchStorage(BaseStorage):
             }
         }
         data = self.driver.search(
-            index=f"{self.prefix}-delivery-dirs",
+            index=f"{self.prefix}-delivery-dirs{self.postfix}",
             filter_path=['hits.hits._source.delivery'],
             body=query,
             size=1)
@@ -257,18 +260,21 @@ class ElasticsearchStorage(BaseStorage):
                 }
             }
         }
-        data = self.driver.search(
-            index=f"{self.prefix}-delivery-dirs",
-            filter_path=['hits.hits._id', 'hits.hits._source.delivery'],
-            body=query,
-            size=1)
-        if data:
-            return data['hits']['hits'][0]['_id'], data['hits']['hits'][0]['_source']['delivery']
+        try:
+            data = self.driver.search(
+                index=f"{self.prefix}-delivery-dirs{self.postfix}",
+                filter_path=['hits.hits._id', 'hits.hits._source.delivery'],
+                body=query,
+                size=1)
+            if data:
+                return data['hits']['hits'][0]['_id'], data['hits']['hits'][0]['_source']['delivery']
+        except exceptions.NotFoundError as e:
+            print(e)
         return None, None
 
     def set_address_for_directory(self, directory, address):
         return self.driver.update(
-            index=f"{self.prefix}-delivery-dirs",
+            index=f"{self.prefix}-delivery-dirs{self.postfix}",
             doc_type="document",
             id=directory,
             body={"doc": {
@@ -298,7 +304,7 @@ class ElasticsearchStorage(BaseStorage):
             }
         }
         data = self.driver.search(
-            index=f"{self.prefix}-delivery-dirs",
+            index=f"{self.prefix}-delivery-dirs{self.postfix}",
             filter_path=['hits.hits._id'],
             body=query,
             size=1000)
@@ -307,7 +313,7 @@ class ElasticsearchStorage(BaseStorage):
         return []
 
     def get_all_mounted(self):
-        return [i for i in helpers.scan(self.driver, index=f"{self.prefix}-delivery-dirs",
+        return [i for i in helpers.scan(self.driver, index=f"{self.prefix}-delivery-dirs{self.postfix}",
                                         doc_type="document")]
 
     def get_sleep_mounted(self, directories):
@@ -342,7 +348,7 @@ class ElasticsearchStorage(BaseStorage):
             }
         }
         data = self.driver.search(
-            index=f"{self.prefix}-delivery-dirs",
+            index=f"{self.prefix}-delivery-dirs{self.postfix}",
             filter_path=['hits.hits._id'],
             body=query,
             size=10)
@@ -400,10 +406,10 @@ class ElasticsearchStorage(BaseStorage):
         }
 
         return self.driver.update(
-            index=f"{self.prefix}-delivery-dirs",
+            index=f"{self.prefix}-delivery-dirs{self.postfix}",
             doc_type="document",
             id=self.driver.search(
-                index=f"{self.prefix}-delivery-dirs",
+                index=f"{self.prefix}-delivery-dirs{self.postfix}",
                 filter_path=['hits.hits._id'],
                 body=query,
                 size=1)['hits']['hits'][0]['_id'],
