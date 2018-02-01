@@ -1,4 +1,5 @@
 import os
+import random
 import time
 from datetime import datetime
 from elasticsearch import Elasticsearch, helpers, exceptions
@@ -152,14 +153,16 @@ class ElasticsearchStorage(BaseStorage):
                     }
                 }
             }
+            search = self.driver.search(
+                index=f"{self.prefix}-server-dirs{self.postfix}",
+                filter_path=['hits.hits._id'],
+                body=query,
+                size=100)['hits']['hits']
+            random.choice(search)
             data = self.driver.create(
                 index=f"{self.prefix}-delivery-dirs{self.postfix}",
                 doc_type="document",
-                id=self.driver.search(
-                    index=f"{self.prefix}-server-dirs{self.postfix}",
-                    filter_path=['hits.hits._id'],
-                    body=query,
-                    size=1)['hits']['hits'][0]['_id'],
+                id=random.choice(search)['_id'],
                 body={
                     "delivery": uuid, "uptime": int(time.time())
                 })
