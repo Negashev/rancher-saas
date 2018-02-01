@@ -194,9 +194,15 @@ async def check_for_create_service_with_storage():
         shutil.move(os.path.join(blanks_path, directory), os.path.join(mounted_path, directory))
     except FileNotFoundError as e:
         print(e)
-        store.set_address_for_directory(directory, "---")
+        try:
+            store.set_address_for_directory(directory, "---")
+        except e:
+            print(e)
         mount_lock = False
-        shutil.move(os.path.join(blanks_path, directory), os.path.join(tmp_path, directory))
+        try:
+            shutil.move(os.path.join(blanks_path, directory), os.path.join(tmp_path, directory))
+        except e:
+            print(e)
         return
     print("make container")
     SERVICE_IMAGE = os.getenv('SERVICE_IMAGE', 'nginx:latest')
@@ -226,9 +232,15 @@ async def check_for_create_service_with_storage():
             await docker.pull(SERVICE_IMAGE)
         else:
             print(f'Error retrieving {SERVICE_IMAGE} image.')
-            store.set_address_for_directory(directory, "---")
+            try:
+                store.set_address_for_directory(directory, "---")
+            except e:
+                print(e)
             mount_lock = False
-            shutil.move(os.path.join(blanks_path, directory), os.path.join(tmp_path, directory))
+            try:
+                shutil.move(os.path.join(blanks_path, directory), os.path.join(tmp_path, directory))
+            except e:
+                print(e)
             return
     container = await docker.containers.create_or_replace(config=config, name=directory)
     await container.start()

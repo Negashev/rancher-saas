@@ -53,19 +53,22 @@ class ChatNamespace(BaseNamespace):
             self.emit('waiting', {'uuid': data['uuid']})
 
     def on_waiting(self, data):
-        if data['address'] is None:
-            print('you directory not ready, please wait')
-            sleep(2)
-            self.emit('waiting', data)
-        elif data['address'] == "---":
+        print(data)
+        if data['address'] == "---":
             # if can't create dir, let's restart
+            print("Can't create dir, let's restart")
+            sleep(2)
             self.emit('get uuid')
-        else:
+        elif data['address'] is not None:
             print(f"Service address {data['address']}")
             check_open_port(data['address'])
             with open('/tmp/proxy.file', 'w') as f:
                 f.write(data['address'])
             exit(0)
+        else:
+            print('You directory not ready, please wait')
+            sleep(2)
+            self.emit('waiting', data)
 
 
 print('Run connector')
@@ -96,7 +99,7 @@ while delivery:
             print("Start delivery")
             chat_namespace.emit('get uuid')
         if delivery:
-            socketIO.wait(300)
+            socketIO.wait(600)
             print('Did not wait for service, retry')
             sleep(5)
             delivery = True
