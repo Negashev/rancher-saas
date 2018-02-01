@@ -32,7 +32,6 @@ async def delivery(request):
 
 @sio.on('get uuid', namespace='/saas')
 async def saas_get_uuid(sid):
-    _uuid = str(uuid.uuid4())
     await sio.emit('set uuid', sid, room=sid, namespace='/saas')
 
 

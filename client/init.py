@@ -57,6 +57,9 @@ class ChatNamespace(BaseNamespace):
             print('you directory not ready, please wait')
             sleep(2)
             self.emit('waiting', data)
+        elif data['address'] == "---":
+            # if can't create dir, let's restart
+            self.emit('get uuid')
         else:
             print(f"Service address {data['address']}")
             check_open_port(data['address'])
