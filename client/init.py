@@ -53,7 +53,6 @@ class ChatNamespace(BaseNamespace):
             self.emit('waiting', {'uuid': data['uuid']})
 
     def on_waiting(self, data):
-        print(data)
         if data['address'] == "---":
             # if can't create dir, let's restart
             print("Can't create dir, let's restart")
