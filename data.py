@@ -187,6 +187,7 @@ async def check_for_create_service_with_storage():
         mount_lock = False
         return
     mounted_path = mkdir_with_chmod(os.path.join(os.getenv('DATA_DIR'), 'mounted'))
+    tmp_path = mkdir_with_chmod(os.path.join(os.getenv('DATA_DIR'), 'tmp'))
     print(f"move {directory} to mounted")
     print(f"move {os.path.join(blanks_path, directory)} to {os.path.join(mounted_path, directory)}")
     try:
@@ -195,6 +196,7 @@ async def check_for_create_service_with_storage():
         print(e)
         store.set_address_for_directory(directory, "---")
         mount_lock = False
+        shutil.move(os.path.join(blanks_path, directory), os.path.join(tmp_path, directory))
         return
     print("make container")
     SERVICE_IMAGE = os.getenv('SERVICE_IMAGE', 'nginx:latest')
@@ -226,6 +228,7 @@ async def check_for_create_service_with_storage():
             print(f'Error retrieving {SERVICE_IMAGE} image.')
             store.set_address_for_directory(directory, "---")
             mount_lock = False
+            shutil.move(os.path.join(blanks_path, directory), os.path.join(tmp_path, directory))
             return
     container = await docker.containers.create_or_replace(config=config, name=directory)
     await container.start()
