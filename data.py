@@ -169,10 +169,13 @@ def store_dirs():
     hostname = socket.gethostname()
     blanks_path = mkdir_with_chmod(os.path.join(os.getenv('DATA_DIR'), 'blanks'))
     mounted_path = mkdir_with_chmod(os.path.join(os.getenv('DATA_DIR'), 'mounted'))
+    tmp_path = mkdir_with_chmod(os.path.join(os.getenv('DATA_DIR'), 'tmp'))
 
     store.set_dirs([os.path.basename(i) for i in get_dirs(blanks_path)], hostname, 'blanks', this_time)
 
     store.set_dirs([os.path.basename(i) for i in get_dirs(mounted_path)], hostname, 'mounted', this_time)
+
+    store.set_dirs([os.path.basename(i) for i in get_dirs(tmp_path)], hostname, 'tmp', this_time)
 
 
 async def check_for_create_service_with_storage():
