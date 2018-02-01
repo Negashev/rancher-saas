@@ -243,6 +243,7 @@ class ElasticsearchStorage(BaseStorage):
                 body=self.mapping
             ))
         directories_es_array = [{"match_phrase": {"_id": i}} for i in directories]
+        print(directories_es_array)
         query = {
             "query": {
                 "bool": {
@@ -275,6 +276,7 @@ class ElasticsearchStorage(BaseStorage):
                 filter_path=['hits.hits._id', 'hits.hits._source.delivery'],
                 body=query,
                 size=1)
+            print(data)
             if data:
                 return data['hits']['hits'][0]['_id'], data['hits']['hits'][0]['_source']['delivery']
         except exceptions.NotFoundError as e:
