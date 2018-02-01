@@ -242,20 +242,12 @@ class ElasticsearchStorage(BaseStorage):
                 ignore=400,
                 body=self.mapping
             ))
-        directories_es_array = [{"match_phrase": {"_id": i}} for i in directories]
-        print(directories_es_array)
         query = {
             "query": {
                 "bool": {
                     "must": [
                         {
                             "match_all": {}
-                        },
-                        {
-                            "bool": {
-                                "should": directories_es_array,
-                                "minimum_should_match": 1
-                            }
                         }
                     ],
                     "filter": [],
@@ -275,10 +267,12 @@ class ElasticsearchStorage(BaseStorage):
                 index=f"{self.prefix}-delivery-dirs{self.postfix}",
                 filter_path=['hits.hits._id', 'hits.hits._source.delivery'],
                 body=query,
-                size=1)
-            print(data)
+                size=100)
             if data:
-                return data['hits']['hits'][0]['_id'], data['hits']['hits'][0]['_source']['delivery']
+                # found first delivery
+                for i in data['hits']['hits']:
+                    if i['_id'] in directories:
+                        return i['_id'], i['_source']['delivery']
         except exceptions.NotFoundError as e:
             print(e)
         return None, None
