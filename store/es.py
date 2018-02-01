@@ -236,7 +236,7 @@ class ElasticsearchStorage(BaseStorage):
         return None
 
     def get_directory_for_move(self, directories):
-        if not self.driver.indices.exists(f"{self.prefix}-server-dirs{self.postfix}"):
+        if not self.driver.indices.exists(f"{self.prefix}-delivery-dirs{self.postfix}"):
             print(self.driver.indices.create(
                 index=f"{self.prefix}-delivery-dirs{self.postfix}",
                 ignore=400,
