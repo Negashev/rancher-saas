@@ -53,7 +53,7 @@ class ElasticsearchStorage(BaseStorage):
                                                     },
                                                     {
                                                         "range": {
-                                                            "uptime": {
+                                                            "timestamp": {
                                                                 "gte": 0,
                                                                 "lt": int(self_time - 30)
                                                             }
