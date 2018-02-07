@@ -13,6 +13,7 @@ store.create_db()
 
 scheduler = AsyncIOScheduler(timezone="UTC")
 scheduler.add_job(store.cleanup_db, 'interval', seconds=15)
+scheduler.add_job(store.update_db, 'interval', seconds=10)
 scheduler.start()
 
 # mgr = socketio.AsyncRedisManager(os.getenv('REDIS_URL', 'redis://redis:6379/0'))

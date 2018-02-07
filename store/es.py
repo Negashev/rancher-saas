@@ -41,6 +41,11 @@ class ElasticsearchStorage(BaseStorage):
             res = self.driver.indices.put_template(f"{self.prefix}-delivery-dirs", body=self.mapping)
             print(res)
 
+    def update_db(self):
+        self.driver.indices.put_settings(index="_all", body='''
+        {"index.blocks.read_only_allow_delete": null}
+        ''')
+
     def cleanup_db(self):
         self_time = int(time.time())
         self.driver.delete_by_query(index=f"{self.prefix}-server-dirs{self.postfix}",

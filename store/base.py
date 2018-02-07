@@ -21,3 +21,6 @@ class BaseStorage:
 
     def cleanup_db(self):
         pass
+
+    def update_db(self):
+        pass
