@@ -12,7 +12,6 @@ from aiodocker.docker import Docker
 from aiodocker.exceptions import DockerError
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-from store.ignite import IgniteStorage
 from store.es import ElasticsearchStorage
 from sweet_hacks import mkdir_with_chmod, get_dirs, last_modify_file, get_size
 
