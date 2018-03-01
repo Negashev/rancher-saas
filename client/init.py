@@ -30,7 +30,6 @@ def delivery_dir(my_uuid=None, retry=0):
     if my_uuid is None:
         my_uuid = get_service_uuid()
     if retry > 30:
-        # TODO retry not exit
         print(f'{my_uuid} delivery: did not wait for service, retry')
         return False
     data = api(f'delivery/{my_uuid}')
@@ -49,7 +48,6 @@ def waiting_dir(my_uuid=None, retry=0):
     if my_uuid is None:
         my_uuid = get_service_uuid()
     if retry > 30:
-        # TODO retry not exit
         print(f'{my_uuid} waiting: did not wait for service, retry')
         return False
     data = api(f'waiting/{my_uuid}')

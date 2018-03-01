@@ -97,6 +97,7 @@ async def saas_disconnect(sid):
 app.router.add_get('/', handle)
 app.router.add_get('/delivery/{uuid}', delivery)
 app.router.add_get('/waiting/{uuid}', waiting)
+app.router.add_get('/health_check/{address}', health_check)
 app.router.add_get('/ping/{ping_type}/{uuid}', ping)
 
 web.run_app(app)
