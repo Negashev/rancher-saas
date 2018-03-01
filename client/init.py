@@ -1,12 +1,86 @@
 import os
 import socket
+import uuid
 from time import sleep
 
-from socketIO_client import SocketIO, BaseNamespace
+import requests
 
 from get_service_address import get_service_address
+from service_uuid import get_service_uuid, set_service_uuid
 
 delivery = True
+
+SAAS_DELIVERY_TRANSPORT = os.getenv('SAAS_DELIVERY_TRANSPORT', 'http')
+SAAS_DELIVERY_URL = os.getenv('SAAS_DELIVERY_URL', '10.100.31.41')
+SAAS_DELIVERY_PORT = os.getenv('SAAS_DELIVERY_PORT', 8080)
+
+
+def api(url):
+    try:
+        r = requests.get(f"{SAAS_DELIVERY_TRANSPORT}://{SAAS_DELIVERY_URL}:{SAAS_DELIVERY_PORT}/{url}")
+        if r.status_code == 200:
+            return r.json()
+    except Exception as e:
+        print(e)
+        sleep(5)
+    return []
+
+
+def delivery_dir(my_uuid=None, retry=0):
+    if my_uuid is None:
+        my_uuid = get_service_uuid()
+    if retry > 30:
+        # TODO retry not exit
+        print(f'{my_uuid} delivery: did not wait for service, retry')
+        return False
+    data = api(f'delivery/{my_uuid}')
+    if 'directory' not in data:
+        return delivery_dir(my_uuid, retry + 1)
+    elif data['directory'] is None:
+        print(f'Directory for {my_uuid} not ready, please wait')
+        sleep(2)
+        return delivery_dir(my_uuid, retry + 1)
+    else:
+        print(f'Waiting directory for {my_uuid}')
+        return waiting_dir(my_uuid)
+
+
+def waiting_dir(my_uuid=None, retry=0):
+    if my_uuid is None:
+        my_uuid = get_service_uuid()
+    if retry > 30:
+        # TODO retry not exit
+        print(f'{my_uuid} waiting: did not wait for service, retry')
+        return False
+    data = api(f'waiting/{my_uuid}')
+    if 'address' not in data:
+        return waiting_dir(my_uuid, retry + 1)
+    elif data['address'] == "---":
+        # if can't create dir, let's restart
+        print(f"Can't create dir for {my_uuid}, let's restart")
+        sleep(2)
+        return delivery_dir(set_service_uuid(str(uuid.uuid4())))
+    elif data['address'] is not None:
+        print(f"Service address {data['address']}")
+        if check_open_port(data['address']):
+            with open('/tmp/proxy.file', 'w') as f:
+                f.write(data['address'])
+            exit(0)
+        return False
+    else:
+        print(f'Directory for {my_uuid} not ready, please wait')
+        sleep(2)
+        return waiting_dir(my_uuid, retry + 1)
+
+
+def health_check(address):
+    data = api(f'health_check/{address}')
+    if 'uuid' not in data:
+        health_check(address)
+    elif data['uuid'] is None:
+        if check_open_port(get_service_address(), kill_proxy=False, wait_time=1):
+            exit(0)
+    print(f"You old service {address} not found")
 
 
 def check_open_port(address, kill_proxy=True, wait_time=30):
@@ -22,56 +96,20 @@ def check_open_port(address, kill_proxy=True, wait_time=30):
     # if port not open, kill proxy
     if kill_proxy:
         print('Service not healthy')
-        exit(1)
-
-
-class ChatNamespace(BaseNamespace):
-
-    def on_health_check(self, uuid):
-        global delivery
-        if uuid:
-            if check_open_port(get_service_address(), kill_proxy=False, wait_time=1):
-                exit(0)
-        delivery = False
-        print("You old service not found")
-        chat_namespace.emit('get uuid')
-
-    def on_set_uuid(self, uuid):
-        global delivery
-        delivery = False
-        print('Delivery directory')
-        self.emit('delivery', {'uuid': uuid})
-
-    def on_delivery(self, data):
-        if data['directory'] is None:
-            print('You directory not ready, please wait')
-            sleep(2)
-            self.emit('delivery', data)
-        else:
-            print('Waiting directory')
-            # if you don't trust for redis :)
-            self.emit('waiting', {'uuid': data['uuid']})
-
-    def on_waiting(self, data):
-        if data['address'] == "---":
-            # if can't create dir, let's restart
-            print("Can't create dir, let's restart")
-            sleep(2)
-            self.emit('get uuid')
-        elif data['address'] is not None:
-            print(f"Service address {data['address']}")
-            check_open_port(data['address'])
-            with open('/tmp/proxy.file', 'w') as f:
-                f.write(data['address'])
-            exit(0)
-        else:
-            print('You directory not ready, please wait')
-            sleep(2)
-            self.emit('waiting', data)
+        return False
 
 
 print('Run connector')
-#
+
+# set uuid
+INHERITED_SERVICE_UUID = os.getenv("INHERITED_SERVICE_UUID", "")
+if INHERITED_SERVICE_UUID != "":
+    print("Try use inherited service uuid")
+    set_service_uuid(os.getenv('INHERITED_SERVICE_UUID'))
+else:
+    set_service_uuid(str(uuid.uuid4()))
+
+# set addr
 INHERITED_SERVICE_ADDR = os.getenv("INHERITED_SERVICE_ADDR", "")
 if INHERITED_SERVICE_ADDR != "":
     print("Try use inherited service address")
@@ -85,24 +123,17 @@ with open('/tmp/local.file', 'w') as local:
         PROXY_ADDR = PROXY_ADDR[len("tcp://"):]
     local.write(PROXY_ADDR)
 
+print("Connecting to delivery service")
+if os.path.isfile('/tmp/proxy.file'):
+    print("Found proxy config, try connect to service")
+    health_check(get_service_address())
+
+print("Start delivery")
+# infinity delivery dir
 while delivery:
-    try:
-        print("Connecting to delivery service")
-        socketIO = SocketIO(os.getenv('SAAS_DELIVERY_URL', '10.100.31.41'), int(os.getenv('SAAS_DELIVERY_PORT', 8080)))
-        chat_namespace = socketIO.define(ChatNamespace, '/saas')
-        print("Success connect")
-        if os.path.isfile('/tmp/proxy.file'):
-            print("Found proxy config, try connect to service")
-            chat_namespace.emit('health check', get_service_address())
-        else:
-            print("Start delivery")
-            chat_namespace.emit('get uuid')
-        if delivery:
-            socketIO.wait(60)
-            print('Did not wait for service, retry')
-            sleep(5)
-            delivery = True
-        else:
-            socketIO.wait()
-    except Exception as e:
-        print(e)
+    delivery = delivery_dir(get_service_uuid())
+    if not delivery:
+        # retry with new uuid
+        sleep(5)
+        delivery = True
+        set_service_uuid(str(uuid.uuid4()))

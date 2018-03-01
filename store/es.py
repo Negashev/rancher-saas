@@ -429,3 +429,43 @@ class ElasticsearchStorage(BaseStorage):
 
     def ping_tmp_address(self, address):
         return self.ping_address(address, uptime=int(time.time()) - 3000)
+
+    def ping_uuid(self, _uuid, uptime=None):
+        if uptime is None:
+            uptime = int(time.time())
+        query = {
+            "query": {
+                "bool": {
+                    "must": [
+                        {
+                            "match_all": {}
+                        },
+                        {
+                            "match_phrase": {
+                                "delivery": {
+                                    "query": _uuid
+                                }
+                            }
+                        }
+                    ],
+                    "filter": [],
+                    "should": [],
+                    "must_not": []
+                }
+            }
+        }
+
+        return self.driver.update(
+            index=f"{self.prefix}-delivery-dirs{self.postfix}",
+            doc_type="document",
+            id=self.driver.search(
+                index=f"{self.prefix}-delivery-dirs{self.postfix}",
+                filter_path=['hits.hits._id'],
+                body=query,
+                size=1)['hits']['hits'][0]['_id'],
+            body={"doc": {
+                "uptime": uptime
+            }})
+
+    def ping_tmp_uuid(self, _uuid):
+        return self.ping_uuid(_uuid, uptime=int(time.time()) - 3000)

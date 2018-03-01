@@ -1,32 +1,31 @@
 import os
-from time import sleep
+import requests
 
-from socketIO_client import SocketIO, BaseNamespace
+from apscheduler.schedulers.blocking import BlockingScheduler
 
-from get_service_address import get_service_address
+from service_uuid import get_service_uuid
+
+SAAS_DELIVERY_TRANSPORT = os.getenv('SAAS_DELIVERY_TRANSPORT', 'http')
+SAAS_DELIVERY_URL = os.getenv('SAAS_DELIVERY_URL', '10.100.31.41')
+SAAS_DELIVERY_PORT = os.getenv('SAAS_DELIVERY_PORT', 8080)
+
+if 'PING_TMP' in os.environ:
+    PING_TYPE = 'tmp'
+else:
+    PING_TYPE = 'stable'
+
+# Start the scheduler
+sched = BlockingScheduler(timezone="UTC")
 
 
-class ChatNamespace(BaseNamespace):
-
-    def on_ping(self, address):
-        sleep(10)
-        chat_namespace.emit('ping', address)
-
-    def on_ping_tmp(self, address):
-        sleep(10)
-        chat_namespace.emit('ping tmp', address)
+# Define the function that is to be executed
+def ping_job():
+    _uuid = get_service_uuid()
+    r = requests.get(f"{SAAS_DELIVERY_TRANSPORT}://{SAAS_DELIVERY_URL}:{SAAS_DELIVERY_PORT}/ping/{PING_TYPE}/{_uuid}")
+    print(r.text)
 
 
-while True:
-    try:
-        socketIO = SocketIO(os.getenv('SAAS_DELIVERY_URL', '10.100.31.41'), int(os.getenv('SAAS_DELIVERY_PORT', 8080)))
-        chat_namespace = socketIO.define(ChatNamespace, '/saas')
+# Store the job in a variable in case we want to cancel it
+sched.add_job(ping_job, 'interval', seconds=10)
 
-        if 'PING_TMP' in os.environ:
-            chat_namespace.emit('ping tmp', get_service_address())
-        else:
-            chat_namespace.emit('ping', get_service_address())
-        socketIO.wait(seconds=60)
-        print("reconnect ping service")
-    except Exception as e:
-        print(e)
+sched.start()
