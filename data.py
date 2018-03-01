@@ -6,7 +6,6 @@ import time
 import os
 
 import requests
-import socketio
 from aiohttp import web
 from aiodocker.docker import Docker
 from aiodocker.exceptions import DockerError
@@ -251,11 +250,7 @@ async def check_for_create_service_with_storage():
     if 'USE_RANCHER' in os.environ:
         r = requests.get('http://rancher-metadata/latest/self/host/agent_ip', headers={'Accept': 'application/json'})
         hostData['HostIp'] = r.json()
-    # if you don't trust for redis :)
     store.set_address_for_directory(directory, f"{hostData['HostIp']}:{hostData['HostPort']}")
-    # if you trust for redis :)
-    # await sio.emit('waiting', {'uuid': delivery, "address": f"{hostData['HostIp']}:{hostData['HostPort']}"},
-    #                room=delivery, namespace='/saas')
     mount_lock = False
 
 
@@ -300,7 +295,6 @@ async def handle(request):
 
 
 docker = Docker()
-# store = IgniteStorage(os.getenv('IGNITE_HOST', 'ignite'))
 store = ElasticsearchStorage()
 store.create_db()
 
@@ -313,10 +307,6 @@ scheduler.add_job(check_for_create_service_with_storage, 'interval', seconds=2)
 scheduler.add_job(check_for_delete_storage_with_service, 'interval', seconds=30)
 scheduler.start()
 
-# mgr = socketio.AsyncRedisManager(os.getenv('REDIS_URL', 'redis://redis:6379/0'))
-sio = socketio.AsyncServer(async_mode='aiohttp'
-                           # , client_manager=mgr
-                           )
 app = web.Application()
 app.router.add_get('/', handle)
 

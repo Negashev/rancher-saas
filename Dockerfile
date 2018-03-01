@@ -7,7 +7,7 @@ ENV DATA_DIR=/data
 VOLUME /data
 VOLUME /source
 
-RUN pip3 --no-cache install elasticsearch aiohttp apscheduler aiodocker python-socketio requests
+RUN pip3 --no-cache install elasticsearch aiohttp apscheduler aiodocker requests
 
 ADD store ./store
 ADD *.py ./

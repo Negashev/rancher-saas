@@ -1,10 +1,8 @@
-import socketio
 from aiohttp import web
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from store.es import ElasticsearchStorage
 
-# store = IgniteStorage(os.getenv('IGNITE_HOST', 'ignite'))
 store = ElasticsearchStorage()
 store.create_db()
 
@@ -13,12 +11,7 @@ scheduler.add_job(store.cleanup_db, 'interval', seconds=15)
 scheduler.add_job(store.update_db, 'interval', seconds=10)
 scheduler.start()
 
-# mgr = socketio.AsyncRedisManager(os.getenv('REDIS_URL', 'redis://redis:6379/0'))
-sio = socketio.AsyncServer(async_mode='aiohttp'
-                           # , client_manager=mgr
-                           )
 app = web.Application()
-sio.attach(app)
 
 
 async def handle(request):
