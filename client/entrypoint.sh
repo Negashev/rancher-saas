@@ -2,5 +2,5 @@
 set -e
 # init or reinit
 echo init
-python3 /src/init.py
+python3 -u /src/init.py
 exec "$@"
