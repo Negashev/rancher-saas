@@ -66,7 +66,7 @@ def waiting_dir(my_uuid=None, retry=0):
             exit(0)
         return False
     else:
-        print(f'Directory for {my_uuid} not ready, please wait')
+        print(f'Waiting container for {my_uuid}')
         sleep(2)
         return waiting_dir(my_uuid, retry + 1)
 
