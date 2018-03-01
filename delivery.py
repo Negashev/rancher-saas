@@ -12,11 +12,11 @@ store = ElasticsearchStorage()
 store.create_db()
 
 # mgr = socketio.AsyncRedisManager(os.getenv('REDIS_URL', 'redis://redis:6379/0'))
-sio = socketio.AsyncServer(async_mode='aiohttp'
-                           # , client_manager=mgr
-                           )
+# sio = socketio.AsyncServer(async_mode='aiohttp'
+#                            # , client_manager=mgr
+#                            )
 app = web.Application()
-sio.attach(app)
+# sio.attach(app)
 
 
 async def handle(request):
@@ -55,43 +55,43 @@ async def ping(request):
         return web.json_response(store.ping_tmp_uuid(_uuid))
 
 
-@sio.on('get uuid', namespace='/saas')
-async def saas_get_uuid(sid):
-    await sio.emit('set uuid', sid, room=sid, namespace='/saas')
-
-
-@sio.on('delivery', namespace='/saas')
-async def saas_delivery(sid, data):
-    data.update({"directory": store.delivery_dir(data['uuid'])})
-    await sio.emit('delivery', data, room=sid, namespace='/saas')
-
-
-@sio.on('waiting', namespace='/saas')
-async def saas_waiting(sid, data):
-    data.update({"address": store.get_address(data['uuid'])})
-    await sio.emit('waiting', data, room=sid, namespace='/saas')
-
-
-@sio.on('health check', namespace='/saas')
-async def saas_health_check(sid, address):
-    await sio.emit('health check', store.get_uuid_by_address(address), room=sid, namespace='/saas')
-
-
-@sio.on('ping', namespace='/saas')
-async def saas_ping(sid, address):
-    store.ping_address(address)
-    await sio.emit('ping', address, room=sid, namespace='/saas')
-
-
-@sio.on('ping tmp', namespace='/saas')
-async def saas_tmp_ping(sid, address):
-    store.ping_tmp_address(address)
-    await sio.emit('ping tmp', address, room=sid, namespace='/saas')
-
-
-@sio.on('disconnect', namespace='/saas')
-async def saas_disconnect(sid):
-    await sio.close_room(sid, namespace='/saas')
+# @sio.on('get uuid', namespace='/saas')
+# async def saas_get_uuid(sid):
+#     await sio.emit('set uuid', sid, room=sid, namespace='/saas')
+#
+#
+# @sio.on('delivery', namespace='/saas')
+# async def saas_delivery(sid, data):
+#     data.update({"directory": store.delivery_dir(data['uuid'])})
+#     await sio.emit('delivery', data, room=sid, namespace='/saas')
+#
+#
+# @sio.on('waiting', namespace='/saas')
+# async def saas_waiting(sid, data):
+#     data.update({"address": store.get_address(data['uuid'])})
+#     await sio.emit('waiting', data, room=sid, namespace='/saas')
+#
+#
+# @sio.on('health check', namespace='/saas')
+# async def saas_health_check(sid, address):
+#     await sio.emit('health check', store.get_uuid_by_address(address), room=sid, namespace='/saas')
+#
+#
+# @sio.on('ping', namespace='/saas')
+# async def saas_ping(sid, address):
+#     store.ping_address(address)
+#     await sio.emit('ping', address, room=sid, namespace='/saas')
+#
+#
+# @sio.on('ping tmp', namespace='/saas')
+# async def saas_tmp_ping(sid, address):
+#     store.ping_tmp_address(address)
+#     await sio.emit('ping tmp', address, room=sid, namespace='/saas')
+#
+#
+# @sio.on('disconnect', namespace='/saas')
+# async def saas_disconnect(sid):
+#     await sio.close_room(sid, namespace='/saas')
 
 
 app.router.add_get('/', handle)
