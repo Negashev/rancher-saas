@@ -75,7 +75,7 @@ def health_check(address):
     data = api(f'health_check/{address}')
     if 'uuid' not in data:
         health_check(address)
-    elif data['uuid'] is None:
+    elif data['uuid'] is not None:
         if check_open_port(get_service_address(), kill_proxy=False, wait_time=1):
             exit(0)
     print(f"You old service {address} not found")
