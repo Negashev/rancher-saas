@@ -17,7 +17,7 @@ SAAS_DELIVERY_PORT = os.getenv('SAAS_DELIVERY_PORT', 8080)
 
 def api(url):
     try:
-        r = requests.get(f"{SAAS_DELIVERY_TRANSPORT}://{SAAS_DELIVERY_URL}:{SAAS_DELIVERY_PORT}/{url}")
+        r = requests.get(f"{SAAS_DELIVERY_TRANSPORT}://{SAAS_DELIVERY_URL}:{SAAS_DELIVERY_PORT}/{url}", timeout=20)
         if r.status_code == 200:
             return r.json()
     except Exception as e:
