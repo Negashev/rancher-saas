@@ -20,10 +20,10 @@ sched = BlockingScheduler(timezone="UTC")
 
 # Define the function that is to be executed
 def ping_job():
-    requests.get(f"{SAAS_DELIVERY_TRANSPORT}://{SAAS_DELIVERY_URL}:{SAAS_DELIVERY_PORT}/ping/{PING_TYPE}/{get_service_uuid()}", timeout=8)
+    requests.get(f"{SAAS_DELIVERY_TRANSPORT}://{SAAS_DELIVERY_URL}:{SAAS_DELIVERY_PORT}/ping/{PING_TYPE}/{get_service_uuid()}", timeout=4)
 
 
 # Store the job in a variable in case we want to cancel it
-sched.add_job(ping_job, 'interval', seconds=10)
+sched.add_job(ping_job, 'interval', seconds=5)
 
 sched.start()
