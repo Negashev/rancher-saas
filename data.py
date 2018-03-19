@@ -20,7 +20,7 @@ mount_lock = False
 '''
 copyfileobj_orig = shutil.copyfileobj
 
-SLEEP_TIME = int(os.getenv("SLEEP_TIME", 0.2))
+SLEEP_TIME = float(os.getenv("SLEEP_TIME", 0.2))
 
 
 def recursive_copy_and_sleep(source_folder, destination_folder):
