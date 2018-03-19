@@ -47,8 +47,10 @@ def recursive_copy_and_sleep(source_folder, destination_folder):
 
 
 def create_blanks():
+    prepare_path = mkdir_with_chmod(os.path.join(os.getenv('DATA_DIR'), 'prepare'))
+    shutil.rmtree(prepare_path, ignore_errors=True)
     blanks_path = mkdir_with_chmod(os.path.join(os.getenv('DATA_DIR'), 'blanks'))
-    tmp_path = mkdir_with_chmod(os.path.join(os.getenv('DATA_DIR'), 'tmp'))
+    trash_path = mkdir_with_chmod(os.path.join(os.getenv('DATA_DIR'), 'trash'))
     source_path = mkdir_with_chmod(os.path.join(os.getenv('DATA_DIR'), 'source'))
     # get ready blanks
     blanks_dirs = get_dirs(blanks_path)
@@ -68,17 +70,19 @@ def create_blanks():
         return
     # create new path for blank
     new_dir = str(uuid.uuid4())
-    new_tmp_dir = os.path.join(tmp_path, new_dir)
+    new_prepare_dir = os.path.join(prepare_path, new_dir)
     new_path = os.path.join(blanks_path, new_dir)
-    print(f"create {new_tmp_dir}")
+    new_trash_path = os.path.join(trash_path, new_dir)
+    print(f"create {new_prepare_dir}")
     # copy data
-    # shutil.copytree(source_path, new_tmp_dir)
-    recursive_copy_and_sleep(source_path, mkdir_with_chmod(new_tmp_dir))
-    os.chmod(new_tmp_dir, 0o777)
-    if get_size(source_path) == get_size(new_tmp_dir):
+    recursive_copy_and_sleep(source_path, mkdir_with_chmod(new_prepare_dir))
+    os.chmod(new_prepare_dir, 0o777)
+    if get_size(source_path) == get_size(new_prepare_dir):
         # move data!
-        print(f"move {new_tmp_dir} {new_path}")
-        shutil.move(new_tmp_dir, new_path)
+        print(f"move {new_prepare_dir} {new_path}")
+        shutil.move(new_prepare_dir, new_path)
+    else:
+        shutil.move(new_prepare_dir, new_trash_path)
 
 
 '''
@@ -134,27 +138,27 @@ def check_blanks():
     if remove_uuid is not None:
         uuid = os.path.basename(remove_uuid)
         print(f'remove {uuid}')
-        shutil.move(remove_uuid, os.path.join(os.getenv('DATA_DIR'), 'tmp', uuid))
+        shutil.move(remove_uuid, os.path.join(os.getenv('DATA_DIR'), 'trash', uuid))
 
 
 '''
-    Remove freeze tmp clones
+    Remove freeze trash
 '''
 
 
-def clean_tmp():
-    tmp_path = mkdir_with_chmod(os.path.join(os.getenv('DATA_DIR'), 'tmp'))
-    tmp_dirs = get_dirs(tmp_path)
+def clean_trash():
+    trash_path = mkdir_with_chmod(os.path.join(os.getenv('DATA_DIR'), 'trash'))
+    trash_dirs = get_dirs(trash_path)
     this_time = time.time()
-    for tmp_dir in tmp_dirs:
+    for trash_dir in trash_dirs:
         # if this cold dir very long
-        newer_file, newer_time = last_modify_file(tmp_dir)
+        newer_file, newer_time = last_modify_file(trash_dir)
         if newer_time is None:
-            shutil.rmtree(tmp_dir)
+            shutil.rmtree(trash_dir)
             continue
         if this_time - newer_time > 60.0 * 5:
-            print(f'remove freeze tmp {tmp_dir}')
-            shutil.rmtree(tmp_dir)
+            print(f'remove freeze trash {trash_dir}')
+            shutil.rmtree(trash_dir)
 
 
 '''
@@ -167,13 +171,16 @@ def store_dirs():
     hostname = socket.gethostname()
     blanks_path = mkdir_with_chmod(os.path.join(os.getenv('DATA_DIR'), 'blanks'))
     mounted_path = mkdir_with_chmod(os.path.join(os.getenv('DATA_DIR'), 'mounted'))
-    tmp_path = mkdir_with_chmod(os.path.join(os.getenv('DATA_DIR'), 'tmp'))
+    prepare_path = mkdir_with_chmod(os.path.join(os.getenv('DATA_DIR'), 'prepare'))
+    trash_path = mkdir_with_chmod(os.path.join(os.getenv('DATA_DIR'), 'trash'))
 
     store.set_dirs([os.path.basename(i) for i in get_dirs(blanks_path)], hostname, 'blanks', this_time)
 
     store.set_dirs([os.path.basename(i) for i in get_dirs(mounted_path)], hostname, 'mounted', this_time)
 
-    store.set_dirs([os.path.basename(i) for i in get_dirs(tmp_path)], hostname, 'tmp', this_time)
+    store.set_dirs([os.path.basename(i) for i in get_dirs(trash_path)], hostname, 'trash', this_time)
+
+    store.set_dirs([os.path.basename(i) for i in get_dirs(prepare_path)], hostname, 'prepare', this_time)
 
 
 async def check_for_create_service_with_storage():
@@ -185,7 +192,7 @@ async def check_for_create_service_with_storage():
         mount_lock = False
         return
     mounted_path = mkdir_with_chmod(os.path.join(os.getenv('DATA_DIR'), 'mounted'))
-    tmp_path = mkdir_with_chmod(os.path.join(os.getenv('DATA_DIR'), 'tmp'))
+    trash_path = mkdir_with_chmod(os.path.join(os.getenv('DATA_DIR'), 'trash'))
     print(f"move {directory} to mounted")
     print(f"move {os.path.join(blanks_path, directory)} to {os.path.join(mounted_path, directory)}")
     try:
@@ -198,7 +205,7 @@ async def check_for_create_service_with_storage():
             print(e)
         mount_lock = False
         try:
-            shutil.move(os.path.join(blanks_path, directory), os.path.join(tmp_path, directory))
+            shutil.move(os.path.join(blanks_path, directory), os.path.join(trash_path, directory))
         except e:
             print(e)
         return
@@ -236,7 +243,7 @@ async def check_for_create_service_with_storage():
                 print(e)
             mount_lock = False
             try:
-                shutil.move(os.path.join(blanks_path, directory), os.path.join(tmp_path, directory))
+                shutil.move(os.path.join(blanks_path, directory), os.path.join(trash_path, directory))
             except e:
                 print(e)
             return
@@ -270,7 +277,7 @@ async def check_for_delete_storage_with_service():
     uuids_to_drop = sleep_directories + filtered_by_mounted_uuid_in_db
     if not uuids_to_drop:
         return
-    tmp_path = mkdir_with_chmod(os.path.join(os.getenv('DATA_DIR'), 'tmp'))
+    trash_path = mkdir_with_chmod(os.path.join(os.getenv('DATA_DIR'), 'trash'))
     # nothink to do of lock!
     if mount_lock:
         return
@@ -280,8 +287,8 @@ async def check_for_delete_storage_with_service():
                 print(f"Drop container {container._id}")
                 await container.delete(force=True)
         try:
-            print(f"move to tmp {os.path.join(mounted_path, uuid_to_drop)} {os.path.join(tmp_path, uuid_to_drop)}")
-            shutil.move(os.path.join(mounted_path, uuid_to_drop), os.path.join(tmp_path, uuid_to_drop))
+            print(f"move to trash {os.path.join(mounted_path, uuid_to_drop)} {os.path.join(trash_path, uuid_to_drop)}")
+            shutil.move(os.path.join(mounted_path, uuid_to_drop), os.path.join(trash_path, uuid_to_drop))
         except Exception as e:
             print(e)
         store.del_mounted(uuid_to_drop)
@@ -301,7 +308,7 @@ store.create_db()
 scheduler = AsyncIOScheduler(timezone="UTC")
 scheduler.add_job(create_blanks, 'interval', seconds=10)
 scheduler.add_job(check_blanks, 'interval', seconds=10)
-scheduler.add_job(clean_tmp, 'interval', seconds=30)
+scheduler.add_job(clean_trash, 'interval', seconds=30)
 scheduler.add_job(store_dirs, 'interval', seconds=2)
 scheduler.add_job(check_for_create_service_with_storage, 'interval', seconds=2)
 scheduler.add_job(check_for_delete_storage_with_service, 'interval', seconds=30)
