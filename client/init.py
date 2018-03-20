@@ -81,7 +81,7 @@ def health_check(address):
     print(f"You old service {address} not found")
 
 
-def check_open_port(address, kill_proxy=True, wait_time=30):
+def check_open_port(address, kill_proxy=True, wait_time=60):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     host, port = address.split(':')
     for i in range(int(os.getenv('WAITING_TIME', wait_time))):
