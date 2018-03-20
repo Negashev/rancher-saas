@@ -6,6 +6,7 @@ store = ElasticsearchStorage()
 store.create_db()
 app = web.Application()
 
+
 async def handle(request):
     return web.json_response(store.get_all_mounted())
 
@@ -41,10 +42,19 @@ async def ping(request):
     else:
         return web.json_response(store.ping_tmp_uuid(_uuid))
 
+
+async def remove_uuid(request):
+    _uuid = request.match_info.get('uuid', None)
+    if _uuid is None:
+        return web.json_response({'error': 'please use /remove/{uuid}'})
+    return web.json_response(store.remove_uuid(_uuid))
+
+
 app.router.add_get('/', handle)
 app.router.add_get('/delivery/{uuid}', delivery)
 app.router.add_get('/waiting/{uuid}', waiting)
 app.router.add_get('/health_check/{address}', health_check)
 app.router.add_get('/ping/{ping_type}/{uuid}', ping)
+app.router.add_get('/remove/{uuid}', remove_uuid)
 
 web.run_app(app)

@@ -469,3 +469,6 @@ class ElasticsearchStorage(BaseStorage):
 
     def ping_tmp_uuid(self, _uuid):
         return self.ping_uuid(_uuid, uptime=int(time.time()) - 3000)
+
+    def remove_uuid(self, _uuid):
+        return self.ping_uuid(_uuid, uptime=0)
