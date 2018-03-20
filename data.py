@@ -46,9 +46,17 @@ def recursive_copy_and_sleep(source_folder, destination_folder):
     return True
 
 
+def truncate_dir(path):
+    for root, dirs, files in os.walk(path):
+        for f in files:
+            os.unlink(os.path.join(root, f))
+        for d in dirs:
+            shutil.rmtree(os.path.join(root, d))
+
+
 def create_blanks():
     prepare_path = mkdir_with_chmod(os.path.join(os.getenv('DATA_DIR'), 'prepare'))
-    shutil.rmtree(prepare_path, ignore_errors=True)
+    truncate_dir(prepare_path)
     blanks_path = mkdir_with_chmod(os.path.join(os.getenv('DATA_DIR'), 'blanks'))
     trash_path = mkdir_with_chmod(os.path.join(os.getenv('DATA_DIR'), 'trash'))
     source_path = mkdir_with_chmod(os.path.join(os.getenv('DATA_DIR'), 'source'))
