@@ -428,7 +428,7 @@ class ElasticsearchStorage(BaseStorage):
             }})
 
     def ping_tmp_address(self, address):
-        return self.ping_address(address, uptime=int(time.time()) - 3000)
+        return self.ping_address(address, uptime=int(time.time()) - 7200)
 
     def ping_uuid(self, _uuid, uptime=None):
         if uptime is None:
