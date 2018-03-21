@@ -340,7 +340,7 @@ class ElasticsearchStorage(BaseStorage):
                             "range": {
                                 "uptime": {
                                     "gte": 0,
-                                    "lt": int(self_time - 3600)
+                                    "lt": int(self_time - 7200)
                                 }
                             }
                         },
@@ -428,7 +428,7 @@ class ElasticsearchStorage(BaseStorage):
             }})
 
     def ping_tmp_address(self, address):
-        return self.ping_address(address, uptime=int(time.time()) - 7200)
+        return self.ping_address(address, uptime=int(time.time()) - 7000)
 
     def ping_uuid(self, _uuid, uptime=None):
         if uptime is None:
@@ -468,7 +468,7 @@ class ElasticsearchStorage(BaseStorage):
             }})
 
     def ping_tmp_uuid(self, _uuid):
-        return self.ping_uuid(_uuid, uptime=int(time.time()) - 3000)
+        return self.ping_uuid(_uuid, uptime=int(time.time()) - 7000)
 
     def remove_uuid(self, _uuid):
         return self.ping_uuid(_uuid, uptime=0)
