@@ -57,7 +57,7 @@ def waiting_dir(my_uuid=None, retry=0):
         # if can't create dir, let's restart
         print(f"Can't create dir for {my_uuid}, let's restart")
         sleep(2)
-        return delivery_dir(set_service_uuid(str(uuid.uuid4())))
+        return delivery_dir(get_service_uuid())
     elif data['address'] is not None:
         print(f"Service address {data['address']}")
         if check_open_port(data['address']):
@@ -104,6 +104,10 @@ INHERITED_SERVICE_UUID = os.getenv("INHERITED_SERVICE_UUID", "")
 if INHERITED_SERVICE_UUID != "":
     print("Try use inherited service uuid")
     set_service_uuid(os.getenv('INHERITED_SERVICE_UUID'))
+    data = api(f"health_check_uuid/{os.getenv('INHERITED_SERVICE_UUID')}")
+    if 'address' in data:
+        with open('/tmp/proxy.file', 'w') as f:
+            f.write(data['address'])
 else:
     set_service_uuid(str(uuid.uuid4()))
 
@@ -121,7 +125,6 @@ with open('/tmp/local.file', 'w') as local:
         PROXY_ADDR = PROXY_ADDR[len("tcp://"):]
     local.write(PROXY_ADDR)
 
-print("Connecting to delivery service")
 if os.path.isfile('/tmp/proxy.file'):
     print("Found proxy config, try connect to service")
     health_check(get_service_address())
@@ -134,4 +137,3 @@ while delivery:
         # retry with new uuid
         sleep(5)
         delivery = True
-        set_service_uuid(str(uuid.uuid4()))

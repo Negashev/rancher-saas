@@ -31,6 +31,12 @@ async def health_check(request):
         return web.json_response({'error': 'please use /health_check/{address}'})
     return web.json_response({"uuid": store.get_uuid_by_address(address)})
 
+async def health_check_uuid(request):
+    _uuid = request.match_info.get('uuid', None)
+    if _uuid is None:
+        return web.json_response({'error': 'please use /health_check_uuid/{uuid}'})
+    return web.json_response({"address": store.check_uuid(_uuid)})
+
 
 async def ping(request):
     ping_type = request.match_info.get('ping_type', None)
@@ -54,6 +60,7 @@ app.router.add_get('/', handle)
 app.router.add_get('/delivery/{uuid}', delivery)
 app.router.add_get('/waiting/{uuid}', waiting)
 app.router.add_get('/health_check/{address}', health_check)
+app.router.add_get('/health_check_uuid/{uuid}', health_check_uuid)
 app.router.add_get('/ping/{ping_type}/{uuid}', ping)
 app.router.add_get('/remove/{uuid}', remove_uuid)
 

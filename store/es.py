@@ -163,7 +163,6 @@ class ElasticsearchStorage(BaseStorage):
                 filter_path=['hits.hits._id'],
                 body=query,
                 size=100)['hits']['hits']
-            random.choice(search)
             data = self.driver.create(
                 index=f"{self.prefix}-delivery-dirs{self.postfix}",
                 doc_type="document",
@@ -238,6 +237,48 @@ class ElasticsearchStorage(BaseStorage):
             size=1)
         if data:
             return data['hits']['hits'][0]['_source']['delivery']
+        return None
+
+    def check_uuid(self, _uuid):
+        self_time = int(time.time())
+        query = {
+            "query": {
+                "bool": {
+                    "must": [
+                        {
+                            "match_all": {}
+                        },
+                        {
+                            "match_phrase": {
+                                "delivery": {
+                                    "query": _uuid
+                                }
+                            }
+                        },
+                        {
+                            "range": {
+                                "uptime": {
+                                    "gte": int(self_time - 7000),
+                                    "lt": int(self_time + 100)
+                                }
+                            }
+                        }
+                    ],
+                    "filter": [],
+                    "should": [],
+                    "must_not": []
+                }
+            }
+        }
+        data = self.driver.search(
+            index=f"{self.prefix}-delivery-dirs{self.postfix}",
+            filter_path=['hits.hits._source.address'],
+            body=query,
+            size=1)
+        if data:
+            for i in data['hits']['hits']:
+                if i['_source']['address'] != '---':
+                    return i['_source']['address']
         return None
 
     def get_directory_for_move(self, directories):
