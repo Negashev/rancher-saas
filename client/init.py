@@ -105,7 +105,7 @@ if INHERITED_SERVICE_UUID != "":
     print("Try use inherited service uuid")
     set_service_uuid(os.getenv('INHERITED_SERVICE_UUID'))
     data = api(f"health_check_uuid/{os.getenv('INHERITED_SERVICE_UUID')}")
-    if 'address' in data:
+    if 'address' in data and data['address'] is not None:
         with open('/tmp/proxy.file', 'w') as f:
             f.write(data['address'])
 else:
