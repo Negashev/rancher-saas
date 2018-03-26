@@ -274,7 +274,7 @@ class ElasticsearchStorage(BaseStorage):
             index=f"{self.prefix}-delivery-dirs{self.postfix}",
             filter_path=['hits.hits._source.address'],
             body=query,
-            size=1)
+            size=1000)
         if data:
             for i in data['hits']['hits']:
                 if i['_source']['address'] != '---':
