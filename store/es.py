@@ -83,7 +83,7 @@ class ElasticsearchStorage(BaseStorage):
                                                         "range": {
                                                             "uptime": {
                                                                 "gte": 0,
-                                                                "lt": int(self_time - 86400)
+                                                                "lt": int(self_time - 8000)
                                                             }
                                                         }
                                                     }
@@ -130,6 +130,11 @@ class ElasticsearchStorage(BaseStorage):
         self_time = int(time.time())
         try:
             query = {
+                "sort" : [
+
+                    { "timestamp" : "desc" },
+                    "_score"
+                ],
                 "query": {
                     "bool": {
                         "must": [
@@ -242,6 +247,11 @@ class ElasticsearchStorage(BaseStorage):
     def check_uuid(self, _uuid):
         self_time = int(time.time())
         query = {
+            "sort" : [
+
+                { "uptime" : "desc" },
+                "_score"
+            ],
             "query": {
                 "bool": {
                     "must": [
@@ -272,7 +282,7 @@ class ElasticsearchStorage(BaseStorage):
         }
         data = self.driver.search(
             index=f"{self.prefix}-delivery-dirs{self.postfix}",
-            filter_path=['hits.hits._source.address'],
+            filter_path=['hits.hits._source.address', 'hits.hits._source.uptime'],
             body=query,
             size=1000)
         if data:
@@ -435,6 +445,11 @@ class ElasticsearchStorage(BaseStorage):
         if uptime is None:
             uptime = int(time.time())
         query = {
+            "sort" : [
+
+                { "uptime" : "desc" },
+                "_score"
+            ],
             "query": {
                 "bool": {
                     "must": [
@@ -475,6 +490,11 @@ class ElasticsearchStorage(BaseStorage):
         if uptime is None:
             uptime = int(time.time())
         query = {
+            "sort" : [
+
+                { "uptime" : "desc" },
+                "_score"
+            ],
             "query": {
                 "bool": {
                     "must": [

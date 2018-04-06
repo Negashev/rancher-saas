@@ -21,10 +21,10 @@ def api(url):
             r = requests.get(f"{SAAS_DELIVERY_TRANSPORT}://{SAAS_DELIVERY_URL}:{SAAS_DELIVERY_PORT}/{url}", timeout=20)
             if r.status_code == 200:
                 return r.json()
+            return []
         except Exception as e:
             print(e)
             sleep(5)
-        return []
 
 
 def delivery_dir(my_uuid=None, retry=0):
