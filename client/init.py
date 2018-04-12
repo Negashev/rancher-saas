@@ -2,84 +2,45 @@ import os
 import socket
 import uuid
 from time import sleep
+from hashlib import sha1
 
 import requests
 
-from get_service_address import get_service_address
 from service_uuid import get_service_uuid, set_service_uuid
 
-delivery = True
+status = True
+message = ''
 
 SAAS_DELIVERY_TRANSPORT = os.getenv('SAAS_DELIVERY_TRANSPORT', 'http')
-SAAS_DELIVERY_URL = os.getenv('SAAS_DELIVERY_URL', '10.100.31.41')
+SAAS_DELIVERY_URL = os.getenv('SAAS_DELIVERY_URL', '192.168.122.23')
 SAAS_DELIVERY_PORT = os.getenv('SAAS_DELIVERY_PORT', 8080)
 
 
-def api(url):
+def sha(string):
+    return sha1(string.encode('utf-8')).hexdigest()
+
+
+def api(url, timeout):
+    return requests.get(f"{SAAS_DELIVERY_TRANSPORT}://{SAAS_DELIVERY_URL}:{SAAS_DELIVERY_PORT}/{url}",
+                        timeout=timeout)
+
+
+def api_wait(url, status_codes=None, timeout=5):
+    if status_codes is None:
+        status_codes = [200]
+    http_fails = 0
     while True:
         try:
-            r = requests.get(f"{SAAS_DELIVERY_TRANSPORT}://{SAAS_DELIVERY_URL}:{SAAS_DELIVERY_PORT}/{url}", timeout=20)
-            if r.status_code == 200:
-                return r.json()
-            return []
+            r = api(url, timeout=timeout)
+            if r.status_code in status_codes:
+                return r
+            http_fails = http_fails + 1
+            sleep(1)
         except Exception as e:
-            print(e)
-            sleep(5)
-
-
-def delivery_dir(my_uuid=None, retry=0):
-    if my_uuid is None:
-        my_uuid = get_service_uuid()
-    if retry > 30:
-        print(f'{my_uuid} delivery: did not wait for service, retry')
-        return False
-    data = api(f'delivery/{my_uuid}')
-    if 'directory' not in data:
-        return delivery_dir(my_uuid, retry + 1)
-    elif data['directory'] is None:
-        print(f'Directory for {my_uuid} not ready, please wait')
-        sleep(2)
-        return delivery_dir(my_uuid, retry + 1)
-    else:
-        print(f'Waiting directory for {my_uuid}')
-        return waiting_dir(my_uuid)
-
-
-def waiting_dir(my_uuid=None, retry=0):
-    if my_uuid is None:
-        my_uuid = get_service_uuid()
-    if retry > 120:
-        print(f'{my_uuid} waiting: did not wait for service, retry')
-        return False
-    data = api(f'waiting/{my_uuid}')
-    if 'address' not in data:
-        return waiting_dir(my_uuid, retry + 1)
-    elif data['address'] == "---":
-        # if can't create dir, let's restart
-        print(f"Can't create dir for {my_uuid}, let's restart")
-        sleep(2)
-        return delivery_dir(get_service_uuid())
-    elif data['address'] is not None:
-        print(f"Service address {data['address']}")
-        if check_open_port(data['address']):
-            with open('/tmp/proxy.file', 'w') as f:
-                f.write(data['address'])
-            exit(0)
-        return False
-    else:
-        print(f'Waiting container for {my_uuid}')
-        sleep(2)
-        return waiting_dir(my_uuid, retry + 1)
-
-
-def health_check(address):
-    data = api(f'health_check/{address}')
-    if 'uuid' not in data:
-        health_check(address)
-    elif data['uuid'] is not None:
-        if check_open_port(get_service_address(), kill_proxy=False, wait_time=1):
-            exit(0)
-    print(f"You old service {address} not found")
+            http_fails = http_fails + 1
+            sleep(1)
+        if http_fails % 10 == 0:
+            print("SAAS api not realy not healthy")
 
 
 def check_open_port(address, kill_proxy=True, wait_time=60):
@@ -90,7 +51,9 @@ def check_open_port(address, kill_proxy=True, wait_time=60):
         # if port is open save file! and start work proxy
         print(f'Ping service port {i} seconds')
         if result == 0:
-            return True
+            with open('/tmp/proxy.file', 'w') as f:
+                f.write(address)
+                exit(0)
         sleep(1)
     # if port not open, kill proxy
     if kill_proxy:
@@ -98,26 +61,77 @@ def check_open_port(address, kill_proxy=True, wait_time=60):
         return False
 
 
-print('Run connector')
+def find_service(_uuid):
+    saas = api_wait(f'find/{_uuid}', status_codes=[200, 501])
+    if saas.status_code == 501:
+        print(saas.json()['error'])
+        sleep(5)
+        return find_service(_uuid)
+    else:
+        print(saas.json()['message'])
+        return get_status(_uuid, status_codes=[200])
+
+
+def get_check(_uuid):
+    _sha = sha(_uuid)
+    check = api_wait(f'check/{_sha}')
+    data = check.json()
+    if 'error' in data:
+        print(data['error'])
+        return find_service(_uuid)
+    else:
+        # if all is ok start proxy
+        check_open_port(data['address'])
+        # if not healthy
+        cleanup(_uuid)
+        return get_status(_uuid)
+
+
+def cleanup(_sha):
+    print("Run cleanup and wait 15 seconds")
+    sleep(5)
+    api_wait(f'cleanup/{_sha}')
+    sleep(10)
+
+
+def get_status(_uuid, status_codes=None):
+    if status_codes is None:
+        status_codes = [200, 400]
+    global message
+    _sha = sha(_uuid)
+    status = api_wait(f'status/{_sha}', status_codes=status_codes)
+    if status.status_code == 400:
+        print(status.json()['error'])
+        return get_check(_uuid)
+    else:
+        data = status.json()
+        if 'error' in data:
+            print(data['error'])
+            cleanup(_uuid)
+            return get_status(_uuid)
+        this_message = status.json()['message']
+        if message != this_message:
+            message = this_message
+            print(message)
+        if 'address' not in data:
+            sleep(0.5)
+            return get_status(_uuid)
+        # if all is ok start proxy
+        check_open_port(data['address'])
+        # if not healthy
+        cleanup(_uuid)
+        return get_status(_uuid)
+
 
 # set uuid
 INHERITED_SERVICE_UUID = os.getenv("INHERITED_SERVICE_UUID", "")
-if INHERITED_SERVICE_UUID != "":
-    print("Try use inherited service uuid")
-    set_service_uuid(os.getenv('INHERITED_SERVICE_UUID'))
-    data = api(f"health_check_uuid/{os.getenv('INHERITED_SERVICE_UUID')}")
-    if 'address' in data and data['address'] is not None:
-        with open('/tmp/proxy.file', 'w') as f:
-            f.write(data['address'])
-else:
-    set_service_uuid(str(uuid.uuid4()))
-
-# set addr
-INHERITED_SERVICE_ADDR = os.getenv("INHERITED_SERVICE_ADDR", "")
-if INHERITED_SERVICE_ADDR != "":
-    print("Try use inherited service address")
-    with open('/tmp/proxy.file', 'w') as f:
-        f.write(os.getenv('INHERITED_SERVICE_ADDR'))
+if INHERITED_SERVICE_UUID == "":
+    if os.path.isfile('/tmp/uuid.file'):
+        INHERITED_SERVICE_UUID = get_service_uuid()
+    else:
+        INHERITED_SERVICE_UUID = str(uuid.uuid4())
+print(f"Use {INHERITED_SERVICE_UUID} uuid")
+set_service_uuid(INHERITED_SERVICE_UUID)
 
 # check local save file and ping service if exist
 with open('/tmp/local.file', 'w') as local:
@@ -126,15 +140,17 @@ with open('/tmp/local.file', 'w') as local:
         PROXY_ADDR = PROXY_ADDR[len("tcp://"):]
     local.write(PROXY_ADDR)
 
-if os.path.isfile('/tmp/proxy.file'):
-    print("Found proxy config, try connect to service")
-    health_check(get_service_address())
+print("Check you client version")
+server_version = api_wait('version').text
+client_version = '2'
+if server_version != client_version:
+    print(f"""
+    You client version is {client_version} SAAS service is {server_version}
+    Please pull new client version
+    """)
+    exit(1)
+print("Client version is valid")
 
-print("Start delivery")
+print(f'Get status for {INHERITED_SERVICE_UUID} ===> {sha(INHERITED_SERVICE_UUID)}')
 # infinity delivery dir
-while delivery:
-    delivery = delivery_dir(get_service_uuid())
-    if not delivery:
-        # retry with new uuid
-        sleep(5)
-        delivery = True
+get_status(INHERITED_SERVICE_UUID)

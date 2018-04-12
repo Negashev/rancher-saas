@@ -1,67 +1,181 @@
-from aiohttp import web
+import copy
+import json
+import os
+import time
+from hashlib import sha1
 
-from store.es import ElasticsearchStorage
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from japronto import Application
+from nats.aio.client import Client as NATS
 
-store = ElasticsearchStorage()
-store.create_db()
-app = web.Application()
+SERVICE_NAME = os.getenv("SERVICE_NAME", "service")
+NATS_DSN = os.getenv("NATS_DSN", "nats://nats:4222")
+ZPOOL_NAME = os.getenv("ZPOOL_NAME", "zpool1")
 
-
-async def handle(request):
-    return web.json_response(store.get_all_mounted())
-
-
-async def delivery(request):
-    _uuid = request.match_info.get('uuid', None)
-    if _uuid is None:
-        return web.json_response({'error': 'please use /delivery/{uuid}'})
-    return web.json_response({"directory": store.delivery_dir(_uuid)})
+UPTIME_SNAPHOTS = {}
+STATUS = {}
 
 
-async def waiting(request):
-    _uuid = request.match_info.get('uuid', None)
-    if _uuid is None:
-        return web.json_response({'error': 'please use /waiting/{uuid}'})
-    return web.json_response({"address": store.get_address(_uuid)})
+async def find_free_server():
+    global UPTIME_SNAPHOTS
+    servers = copy.deepcopy(UPTIME_SNAPHOTS)
+    mounts = 10000000000000000
+    this_time = int(time.time()) - 10
+    most_free_server = None
+    for i in servers.keys():
+        # very new very free server
+        if servers[i]['uptime'] >= this_time and len(servers[i]['snapshots']) <= mounts:
+            most_free_server = i
+    return most_free_server
 
 
-async def health_check(request):
-    address = request.match_info.get('address', None)
-    if address is None:
-        return web.json_response({'error': 'please use /health_check/{address}'})
-    return web.json_response({"uuid": store.get_uuid_by_address(address)})
-
-async def health_check_uuid(request):
-    _uuid = request.match_info.get('uuid', None)
-    if _uuid is None:
-        return web.json_response({'error': 'please use /health_check_uuid/{uuid}'})
-    return web.json_response({"address": store.check_uuid(_uuid)})
+# urls
+async def get_version(request):
+    return request.Response(text='2')
 
 
-async def ping(request):
-    ping_type = request.match_info.get('ping_type', None)
-    _uuid = request.match_info.get('uuid', None)
-    if ping_type is None or _uuid is None:
-        return web.json_response({'error': 'please use /ping/{ping_type}/{uuid}'})
-    if ping_type == 'stable':
-        return web.json_response(store.ping_uuid(_uuid))
-    else:
-        return web.json_response(store.ping_tmp_uuid(_uuid))
+async def list_services(request):
+    global UPTIME_SNAPHOTS
+    return request.Response(json=UPTIME_SNAPHOTS,
+                            code=200 if request.nc.is_connected else 500)
 
 
-async def remove_uuid(request):
-    _uuid = request.match_info.get('uuid', None)
-    if _uuid is None:
-        return web.json_response({'error': 'please use /remove/{uuid}'})
-    return web.json_response(store.remove_uuid(_uuid))
+async def check_service_uuid(request):
+    snapshot_name = f"{ZPOOL_NAME}/from-snapshot-{SERVICE_NAME}-{request.match_dict['uuid']}"
+    all_snapshots = copy.deepcopy(UPTIME_SNAPHOTS)
+    for server in all_snapshots.keys():
+        if snapshot_name in all_snapshots[server]['snapshots'].keys():
+            snapshot = all_snapshots[server]['snapshots'][snapshot_name]
+            return request.Response(json=snapshot,
+                                    code=200 if request.nc.is_connected else 500)
+    return request.Response(json={"error": f"Service {request.match_dict['uuid']} not found"},
+                            code=200 if request.nc.is_connected else 500)
 
 
-app.router.add_get('/', handle)
-app.router.add_get('/delivery/{uuid}', delivery)
-app.router.add_get('/waiting/{uuid}', waiting)
-app.router.add_get('/health_check/{address}', health_check)
-app.router.add_get('/health_check_uuid/{uuid}', health_check_uuid)
-app.router.add_get('/ping/{ping_type}/{uuid}', ping)
-app.router.add_get('/remove/{uuid}', remove_uuid)
+async def service_status(request):
+    _sha1 = request.match_dict['sha1']
+    data = {"error": f"Not found status for {_sha1}"}
+    code = 400
+    if _sha1 in STATUS:
+        data = STATUS[_sha1]
+        code = 200
+    return request.Response(json=data,
+                            code=code if request.nc.is_connected else 500)
 
-web.run_app(app)
+
+async def find_service_uuid(request):
+    uuid = request.match_dict['uuid']
+    data = sha1(uuid.encode('utf-8')).hexdigest()
+    free_server = await find_free_server()
+    if free_server:
+        await request.nc.publish(f"{SERVICE_NAME}-delivery-{free_server}", bytes(data, 'utf-8'))
+        return request.Response(json={"message": f"Delivery '{data}' on '{free_server}' SAAS server"},
+                                code=200 if request.nc.is_connected else 500)
+    return request.Response(json={"error": "SAAS servers not found"},
+                            code=501 if request.nc.is_connected else 500)
+
+
+async def service_uptime(request):
+    match_dict = request.match_dict
+    this_time = 7200
+    if 'time' in match_dict.keys():
+        this_time = int(match_dict['time'])
+    await nc.publish(f"{SERVICE_NAME}-uptime",
+                     bytes(
+                         json.dumps(
+                             {
+                                 "mount": f"{ZPOOL_NAME}/from-snapshot-{SERVICE_NAME}-{match_dict['sha1']}",
+                                 "time": this_time
+                             }
+                         ),
+                         'utf-8'))
+    return request.Response(text='ok',
+                            code=200 if request.nc.is_connected else 500)
+
+
+async def cleanup_service(request):
+    if request.nc.is_connected:
+        await request.nc.publish(f"{SERVICE_NAME}-cleanup-service", bytes(request.match_dict['sha1'], 'utf-8'))
+    return request.Response(text='send', code=200 if request.nc.is_connected else 500)
+
+
+# subscribe
+async def mounted(msg):
+    global UPTIME_SNAPHOTS
+    this_time = int(time.time())
+    data = json.loads(msg.data.decode())
+    UPTIME_SNAPHOTS[data['hostname']] = {"uptime": this_time, 'snapshots': data['snapshots']}
+
+
+async def update_status(msg):
+    global STATUS
+    this_time = int(time.time())
+    data = json.loads(msg.data.decode())
+    if data['sha1'] not in STATUS.keys():
+        STATUS[data['sha1']] = {}
+    data.update({"uptime": this_time})
+    STATUS[data['sha1']].update(data)
+
+
+async def cleanup_status(msg):
+    global STATUS
+    data = msg.data.decode()
+    try:
+        print(f"Remove status for {data}")
+        del STATUS[data]
+    except Exception as e:
+        pass
+
+
+# scheduler
+async def remove_sleep_servers():
+    global UPTIME_SNAPHOTS
+    this_time = int(time.time()) - 30
+    servers = copy.deepcopy(UPTIME_SNAPHOTS)
+    for i in servers.keys():
+        if UPTIME_SNAPHOTS[i]['uptime'] < this_time:
+            print(f"server {i} is offline")
+            del UPTIME_SNAPHOTS[i]
+
+
+async def remove_sleep_statuses():
+    global STATUS
+    this_time = int(time.time()) - 600
+    statuses = copy.deepcopy(STATUS)
+    for i in statuses.keys():
+        if STATUS[i]['uptime'] < this_time:
+            print(f"Remove status for {i}")
+            del STATUS[i]
+
+
+# init
+async def connect_nats(app):
+    await nc.connect(servers=[NATS_DSN], io_loop=app.loop, max_reconnect_attempts=-1, verbose=True)
+    await nc.subscribe(f"{SERVICE_NAME}-mounted", cb=mounted)
+    await nc.subscribe(f"{SERVICE_NAME}-status", cb=update_status)
+    await nc.subscribe(f"{SERVICE_NAME}-cleanup-status", cb=cleanup_status)
+    # add nats to japronto app
+    app.extend_request(lambda x: nc, name='nc', property=True)
+
+
+async def connect_scheduler():
+    scheduler = AsyncIOScheduler(timezone="UTC")
+    scheduler.add_job(remove_sleep_servers, 'interval', seconds=1)
+    scheduler.add_job(remove_sleep_statuses, 'interval', seconds=1)
+    scheduler.start()
+
+
+app = Application()
+nc = NATS()
+app.loop.run_until_complete(connect_nats(app))
+app.loop.run_until_complete(connect_scheduler())
+router = app.router
+router.add_route('/', list_services)
+router.add_route('/version', get_version)
+router.add_route('/status/{sha1}', service_status)
+router.add_route('/check/{uuid}', check_service_uuid)
+router.add_route('/find/{uuid}', find_service_uuid)
+router.add_route('/uptime/{sha1}', service_uptime)
+router.add_route('/uptime/{sha1}/{time}', service_uptime)
+router.add_route('/cleanup/{sha1}', cleanup_service)
+app.run(debug=bool(int(os.getenv('DEBUG', 0))))

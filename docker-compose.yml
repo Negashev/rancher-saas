@@ -2,7 +2,7 @@ version: '2'
 services:
   source-cloner:
     image: minio/mc
-    command: mirror --overwrite --watch --remove /source/ /data/source
+    command: mirror --overwrite --remove /data/ /source
     volumes:
       - ./tmp/worker:/data
       - ./tmp/remote_source:/source
@@ -40,34 +40,69 @@ services:
 #    command: -p 4222 --http_port 8080 -cluster nats://0.0.0.0:5222 -routes nats://nats-1:5222,nats://nats-2:5222,nats://nats-3:5222 -D
 #    ports:
 #      - 8080
-  es:
-    image: docker.elastic.co/elasticsearch/elasticsearch:6.2.1
-    environment:
-      ES_JAVA_OPTS: -Xms1g -Xmx1g
-      discovery.zen.ping.unicast.hosts: es
-      node.name: $${HOSTNAME}
-      xpack.security.enabled: 'false'
-  cerebro:
-    image: yannart/cerebro
-    ports:
-      - 9000:9000
-    links:
-    - es:es
-  kibana:
-    image: docker.elastic.co/kibana/kibana:6.2.1
-    environment:
-      ELASTICSEARCH_URL: http://es:9200
-      xpack.monitoring.ui.container.elasticsearch.enabled: 'false'
-      xpack.security.enabled: 'false'
-    ports:
-      - 5601:5601
-    links:
-    - es:es
-  sysctl:
+  data:
+    build: .
+    image: negash/rancher-saas:zfs
     privileged: true
-    image: alpine
-    network_mode: none
-    command:
-    - sysctl
-    - -w
-    - vm.max_map_count=262144
+    pid: host
+    stdin_open: true
+    tty: true
+    command: python3 -m japronto data.app --reload
+    working_dir: /opt/project
+    ports:
+      - 8000:8080
+    volumes:
+      - /home/negash/Dropbox/PycharmProjects/rancher-saas:/opt/project
+      - /data-source:/source
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /mnt:/mnt:shared
+    environment:
+      DEBUG: 1
+      USE_IP_ADDR: 192.168.122.23
+  delivery:
+    build: .
+    image: negash/rancher-saas:zfs
+    stdin_open: true
+    tty: true
+    command: python3 -m japronto delivery.app --reload
+    working_dir: /opt/project
+    ports:
+      - 8080:8080
+    volumes:
+      - /home/negash/Dropbox/PycharmProjects/rancher-saas:/opt/project
+  nats-1:
+    image: nats
+    command: -p 4222 --http_port 8080 -cluster nats://0.0.0.0:5222 -routes nats://nats-2:5222,nats://nats-3:5222 -D
+    logging:
+      driver: json-file
+      options:
+        max-file: '1'
+        max-size: 1mb
+  nats-2:
+    image: nats
+    command: -p 4222 --http_port 8080 -cluster nats://0.0.0.0:5222 -routes nats://nats-1:5222,nats://nats-3:5222 -D
+    logging:
+      driver: json-file
+      options:
+        max-file: '1'
+        max-size: 1mb
+  nats-3:
+    image: nats
+    command: -p 4222 --http_port 8080 -cluster nats://0.0.0.0:5222 -routes nats://nats-1:5222,nats://nats-2:5222 -D
+    logging:
+      driver: json-file
+      options:
+        max-file: '1'
+        max-size: 1mb
+  nats:
+    image: nats
+    links:
+      - nats-1:nats-1
+      - nats-2:nats-2
+      - nats-3:nats-3
+    command: -p 4222 --http_port 8080 -cluster nats://0.0.0.0:5222 -routes nats://nats-1:5222,nats://nats-2:5222,nats://nats-3:5222 -D
+    logging:
+      driver: json-file
+      options:
+        max-file: '1'
+        max-size: 1mb
