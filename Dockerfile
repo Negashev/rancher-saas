@@ -14,5 +14,4 @@ RUN apk add --no-cache --virtual .build-deps build-base python3-dev libffi-dev o
 	&& apk del .build-deps \
 	&& rm -rf /var/cache/apk/*
 
-ADD store ./store
 ADD *.py ./
