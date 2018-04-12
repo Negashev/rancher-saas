@@ -164,8 +164,9 @@ def destroy_data_snapshot():
 
 async def store_services():
     global UPTIME_SNAPHOTS
+    global LOCK
     await nc.publish(f"{SERVICE_NAME}-mounted",
-                     bytes(json.dumps({"hostname": HOSTNAME, "snapshots": UPTIME_SNAPHOTS}), 'utf-8'))
+                     bytes(json.dumps({"hostname": HOSTNAME, "snapshots": UPTIME_SNAPHOTS, "block": LOCK}), 'utf-8'))
 
 
 async def uptime_handler(msg):

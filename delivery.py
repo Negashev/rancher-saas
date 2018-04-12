@@ -24,7 +24,7 @@ async def find_free_server():
     most_free_server = None
     for i in servers.keys():
         # very new very free server
-        if servers[i]['uptime'] >= this_time and len(servers[i]['snapshots']) <= mounts:
+        if not servers[i]['block'] and servers[i]['uptime'] >= this_time and len(servers[i]['snapshots']) <= mounts:
             most_free_server = i
     return most_free_server
 
@@ -104,7 +104,7 @@ async def mounted(msg):
     global UPTIME_SNAPHOTS
     this_time = int(time.time())
     data = json.loads(msg.data.decode())
-    UPTIME_SNAPHOTS[data['hostname']] = {"uptime": this_time, 'snapshots': data['snapshots']}
+    UPTIME_SNAPHOTS[data['hostname']] = {"uptime": this_time, 'snapshots': data['snapshots'], "block":  data['block']}
 
 
 async def update_status(msg):
