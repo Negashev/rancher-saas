@@ -5,6 +5,7 @@ import re
 import socket
 import time
 from hashlib import sha1
+import uuid
 
 import requests
 from aiodocker.docker import Docker
@@ -125,17 +126,40 @@ def create_data_snapshot():
         newer_file, newer_time = last_modify_file(DATA_SOURCE)
         if newer_time is None:
             return
-        if this_time - newer_time < 20.0:
+        if this_time - newer_time < 60.0:
             return
         for dirpath, dirnames, files in os.walk(DATA_SOURCE):
             if not files:
                 return
+        # cleanup tmp
+        for i in zfs.find(ZPOOL_NAME):
+            # find if zpool/from-snapshot-service-*
+            if not i.name.startswith(f"{ZPOOL_NAME}/tmp-{SERVICE_NAME}-"):
+                continue
+            try:
+                i.destroy()
+                print(f"Destroy tmp {i.name}")
+            except Exception as e:
+                print(f"Can't destroy tmp {i.name}")
         new_zfs_name = f"{ZPOOL_NAME}/{SERVICE_NAME}-{int(time.time())}"
+        tmp_zfs_name = f"{ZPOOL_NAME}/tmp-{SERVICE_NAME}-{str(uuid.uuid4())}-{this_time}"
         print(f"Creating {new_zfs_name}")
         LOCK = True
-        new_zfs = zfs.create(new_zfs_name)
-        print(f"Created {new_zfs.name}")
-        recursive_copy_and_sleep(SLEEP_TIME, DATA_SOURCE, mkdir_with_chmod(f"{ZPOOL_MOUNT}/{new_zfs_name}"))
+        tmp_zfs = zfs.create(tmp_zfs_name)
+        print(f"Copy data to {tmp_zfs.name}")
+        recursive_copy_and_sleep(SLEEP_TIME, DATA_SOURCE, mkdir_with_chmod(f"{ZPOOL_MOUNT}/{tmp_zfs_name}"))
+
+        url = zfs._urlsplit(tmp_zfs_name)
+
+        cmd = ['zfs', 'rename']
+
+        cmd.append(url.path)
+
+        cmd.append(new_zfs_name)
+
+        new_zfs = zfs.ZFSDataset(new_zfs_name)
+        print(f"Rename {tmp_zfs_name} to {new_zfs_name}")
+        process.check_call(cmd, netloc=url.netloc)
         new_zfs.snapshot('snapshot')
         LOCK = False
         truncate_dir(DATA_SOURCE)
@@ -165,6 +189,7 @@ def destroy_data_snapshot():
 async def store_services():
     global UPTIME_SNAPHOTS
     global LOCK
+    print(f"store dirs {len(UPTIME_SNAPHOTS)}")
     await nc.publish(f"{SERVICE_NAME}-mounted",
                      bytes(json.dumps({"hostname": HOSTNAME, "snapshots": UPTIME_SNAPHOTS, "block": LOCK}), 'utf-8'))
 
@@ -198,7 +223,7 @@ async def delivery_handler(msg):
     cmd.append(url.path)
 
     clone_name = f"{ZPOOL_NAME}/from-snapshot-{SERVICE_NAME}-{data}"
-    UPTIME_SNAPHOTS[clone_name] = {"uptime": int(time.time()) + 60}
+    UPTIME_SNAPHOTS[clone_name] = {"uptime": int(time.time()) + 300}
     await store_services()
 
 
