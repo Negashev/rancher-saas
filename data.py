@@ -4,7 +4,6 @@ import os
 import re
 import socket
 import time
-from hashlib import sha1
 import uuid
 
 import requests
@@ -16,9 +15,9 @@ from weir import zfs, process
 from nats.aio.client import Client as NATS
 from weir.process import DatasetExistsError
 
-from sweet_hacks import last_modify_file, mkdir_with_chmod, recursive_copy_and_sleep, truncate_dir
+from sweet_hacks import last_modify_file, mkdir_with_chmod, recursive_copy_and_sleep, get_size
 
-SLEEP_TIME = float(os.getenv("SLEEP_TIME", 0.2))
+SLEEP_TIME = float(os.getenv("SLEEP_TIME", 0.5))
 ZPOOL_NAME = os.getenv("ZPOOL_NAME", "zpool1")
 ZPOOL_MOUNT = os.getenv("ZPOOL_MOUNT", "/mnt")
 SERVICE_NAME = os.getenv("SERVICE_NAME", "service")
@@ -32,7 +31,9 @@ SERVICE_PORT = os.getenv('SERVICE_PORT', "80/tcp")
 SERVICE_VOLUME = os.getenv('SERVICE_VOLUME', "/usr/share/nginx/html")
 
 LOCK = False
-UPTIME_SNAPHOTS = {}
+FIRST_INIT = False
+UPTIME_SNAPSHOTS = {}
+IGNORE_SNAPSHOT = ''
 
 
 def find_service_dirs():
@@ -56,7 +57,7 @@ def get_container_hostdata(host_data):
 
 
 async def container_by_data(container, const_find_service_dirs):
-    global UPTIME_SNAPHOTS
+    global UPTIME_SNAPSHOTS
     container_names = container._container['Names']
     for i in const_find_service_dirs:
         tmp_container_name = re.sub(rf"^({ZPOOL_NAME}/from-snapshot-)", "/", i.name)
@@ -66,7 +67,7 @@ async def container_by_data(container, const_find_service_dirs):
             # get port
             container_port = await container.port(SERVICE_PORT)
             host_data = get_container_hostdata(container_port[0])
-            UPTIME_SNAPHOTS[i.name] = {"uptime": int(time.time()) + 7200,
+            UPTIME_SNAPSHOTS[i.name] = {"uptime": int(time.time()) + 7200,
                                        "address": f"{host_data['HostIp']}:{host_data['HostPort']}"}
 
 
@@ -89,6 +90,8 @@ def find_data_source(with_snapshots=True):
     for i in zfs.find(ZPOOL_NAME):
         # find if zpool/service-*
         if not i.name.startswith(f"{ZPOOL_NAME}/{SERVICE_NAME}-"):
+            continue
+        if i.name == IGNORE_SNAPSHOT:
             continue
         snapshots = i.snapshots()
         if not snapshots and with_snapshots:
@@ -118,8 +121,25 @@ def with_sort(data_source, reverse=True):
             return data_source[:-1]
     return None
 
-
 def create_data_snapshot():
+    global LOCK
+    global IGNORE_SNAPSHOT
+    global FIRST_INIT
+    this_time = int(time.time())
+    new_zfs_name = f"{ZPOOL_NAME}/{SERVICE_NAME}-{this_time}"
+    LOCK = True
+    IGNORE_SNAPSHOT = new_zfs_name
+    print(f"Creating {new_zfs_name}")
+    new_zfs = zfs.create(new_zfs_name)
+    print(f"Copy data to {new_zfs.name}")
+    recursive_copy_and_sleep(SLEEP_TIME, DATA_SOURCE, mkdir_with_chmod(f"{ZPOOL_MOUNT}/{new_zfs.name}"))
+    print(f"Make snapshot {new_zfs_name}")
+    new_zfs.snapshot('snapshot')
+    IGNORE_SNAPSHOT = ''
+    FIRST_INIT = True
+    LOCK = False
+
+def check_create_data_snapshot():
     global LOCK
     try:
         this_time = time.time()
@@ -131,38 +151,11 @@ def create_data_snapshot():
         for dirpath, dirnames, files in os.walk(DATA_SOURCE):
             if not files:
                 return
-        # cleanup tmp
-        for i in zfs.find(ZPOOL_NAME):
-            # find if zpool/from-snapshot-service-*
-            if not i.name.startswith(f"{ZPOOL_NAME}/tmp-{SERVICE_NAME}-"):
-                continue
-            try:
-                i.destroy()
-                print(f"Destroy tmp {i.name}")
-            except Exception as e:
-                print(f"Can't destroy tmp {i.name}")
-        new_zfs_name = f"{ZPOOL_NAME}/{SERVICE_NAME}-{int(time.time())}"
-        tmp_zfs_name = f"{ZPOOL_NAME}/tmp-{SERVICE_NAME}-{str(uuid.uuid4())}-{this_time}"
-        print(f"Creating {new_zfs_name}")
-        LOCK = True
-        tmp_zfs = zfs.create(tmp_zfs_name)
-        print(f"Copy data to {tmp_zfs.name}")
-        recursive_copy_and_sleep(SLEEP_TIME, DATA_SOURCE, mkdir_with_chmod(f"{ZPOOL_MOUNT}/{tmp_zfs_name}"))
-
-        url = zfs._urlsplit(tmp_zfs_name)
-
-        cmd = ['zfs', 'rename']
-
-        cmd.append(url.path)
-
-        cmd.append(new_zfs_name)
-
-        new_zfs = zfs.ZFSDataset(new_zfs_name)
-        print(f"Rename {tmp_zfs_name} to {new_zfs_name}")
-        process.check_call(cmd, netloc=url.netloc)
-        new_zfs.snapshot('snapshot')
-        LOCK = False
-        truncate_dir(DATA_SOURCE)
+        data_source = with_sort(find_data_source())
+        if data_source is None:
+            return create_data_snapshot()
+        if get_size(DATA_SOURCE) != get_size(f"{ZPOOL_MOUNT}/{data_source.name}"):
+            return create_data_snapshot()
     except Exception as e:
         print(e)
     LOCK = False
@@ -187,18 +180,20 @@ def destroy_data_snapshot():
 
 
 async def store_services():
-    global UPTIME_SNAPHOTS
+    global UPTIME_SNAPSHOTS
     global LOCK
-    print(f"store dirs {len(UPTIME_SNAPHOTS)}")
+    global FIRST_INIT
+    if not FIRST_INIT:
+        return
     await nc.publish(f"{SERVICE_NAME}-mounted",
-                     bytes(json.dumps({"hostname": HOSTNAME, "snapshots": UPTIME_SNAPHOTS, "block": LOCK}), 'utf-8'))
+                     bytes(json.dumps({"hostname": HOSTNAME, "snapshots": UPTIME_SNAPSHOTS, "block": LOCK}), 'utf-8'))
 
 
 async def uptime_handler(msg):
-    global UPTIME_SNAPHOTS
+    global UPTIME_SNAPSHOTS
     data = json.loads(msg.data.decode())
     try:
-        UPTIME_SNAPHOTS[data['mount']].update({"uptime": int(time.time()) + data['time']})
+        UPTIME_SNAPSHOTS[data['mount']].update({"uptime": int(time.time()) + data['time']})
     except Exception as e:
         pass
 
@@ -223,7 +218,7 @@ async def delivery_handler(msg):
     cmd.append(url.path)
 
     clone_name = f"{ZPOOL_NAME}/from-snapshot-{SERVICE_NAME}-{data}"
-    UPTIME_SNAPHOTS[clone_name] = {"uptime": int(time.time()) + 300}
+    UPTIME_SNAPSHOTS[clone_name] = {"uptime": int(time.time()) + 300}
     await store_services()
 
 
@@ -294,7 +289,7 @@ async def delivery_handler(msg):
         await docker.close()
         host_data = get_container_hostdata(container_port[0])
 
-        UPTIME_SNAPHOTS[clone_name] = {"uptime": int(time.time()) + 60,
+        UPTIME_SNAPSHOTS[clone_name] = {"uptime": int(time.time()) + 60,
                                        "address": f"{host_data['HostIp']}:{host_data['HostPort']}"}
         # ping uptime
         await store_services()
@@ -313,7 +308,7 @@ async def delivery_handler(msg):
 
 
 async def cleanup_service(msg):
-    global UPTIME_SNAPHOTS
+    global UPTIME_SNAPSHOTS
     data = msg.data.decode()
     docker = Docker()
     for container in (await docker.containers.list()):
@@ -334,15 +329,15 @@ async def cleanup_service(msg):
     print(f"Cleanup snapshot {snapshot.name}")
 
     await nc.publish(f"{SERVICE_NAME}-cleanup-status", bytes(msg, "utf-8"))
-    del UPTIME_SNAPHOTS[f"{ZPOOL_NAME}/from-snapshot-{SERVICE_NAME}-{data}"]
+    del UPTIME_SNAPSHOTS[f"{ZPOOL_NAME}/from-snapshot-{SERVICE_NAME}-{data}"]
     await store_services()
     return
 
 
 # url
 async def list_services(request):
-    global UPTIME_SNAPHOTS
-    return request.Response(json=UPTIME_SNAPHOTS,
+    global UPTIME_SNAPSHOTS
+    return request.Response(json=UPTIME_SNAPSHOTS,
                             code=200 if request.nc.is_connected else 500)
 
 
@@ -363,15 +358,15 @@ async def remove_sleep_docker(snapshot):
 
 
 async def remove_sleep():
-    global UPTIME_SNAPHOTS
+    global UPTIME_SNAPSHOTS
     const_find_service_dirs = find_service_dirs()
     for i in const_find_service_dirs:
         # if this storage have mount service
         this_time = time.time()
-        if i.name in UPTIME_SNAPHOTS:
-            if UPTIME_SNAPHOTS[i.name]['uptime'] < int(this_time):
+        if i.name in UPTIME_SNAPSHOTS:
+            if UPTIME_SNAPSHOTS[i.name]['uptime'] < int(this_time):
                 await remove_sleep_docker(i)
-                del UPTIME_SNAPHOTS[i.name]
+                del UPTIME_SNAPSHOTS[i.name]
         else:
             print(f"Remove {i.name}")
             i.destroy()
@@ -392,7 +387,7 @@ async def connect_nats(app):
 
 async def connect_scheduler():
     scheduler = AsyncIOScheduler(timezone="UTC")
-    scheduler.add_job(create_data_snapshot, 'interval', seconds=20)
+    scheduler.add_job(check_create_data_snapshot, 'interval', seconds=20)
     scheduler.add_job(destroy_data_snapshot, 'interval', seconds=20)
 
     scheduler.add_job(store_services, 'interval', seconds=1)
@@ -404,11 +399,21 @@ async def connect_scheduler():
     docker = Docker()
     app.extend_request(lambda x: docker, name='docker', property=True)
 
+async def check_first_init():
+    global FIRST_INIT
+    data_source = with_sort(find_data_source())
+    if data_source is None:
+        FIRST_INIT = False
+        return
+    if get_size(DATA_SOURCE) == get_size(f"{ZPOOL_MOUNT}/{data_source.name}"):
+        FIRST_INIT = True
+        return
 
 app = Application()
 nc = NATS()
 app.loop.run_until_complete(connect_nats(app))
 app.loop.run_until_complete(datanode_first_up())
+app.loop.run_until_complete(check_first_init())
 app.loop.run_until_complete(store_services())
 app.loop.run_until_complete(connect_scheduler())
 router = app.router
