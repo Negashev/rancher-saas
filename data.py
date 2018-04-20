@@ -33,7 +33,7 @@ SERVICE_VOLUME = os.getenv('SERVICE_VOLUME', "/usr/share/nginx/html")
 LOCK = False
 FIRST_INIT = False
 UPTIME_SNAPSHOTS = {}
-IGNORE_SNAPSHOT = ''
+IGNORE_SNAPSHOT = None
 
 
 def find_service_dirs():
@@ -135,12 +135,14 @@ def create_data_snapshot():
     recursive_copy_and_sleep(SLEEP_TIME, DATA_SOURCE, mkdir_with_chmod(f"{ZPOOL_MOUNT}/{new_zfs.name}"))
     print(f"Make snapshot {new_zfs_name}")
     new_zfs.snapshot('snapshot')
-    IGNORE_SNAPSHOT = ''
+    IGNORE_SNAPSHOT = None
     FIRST_INIT = True
     LOCK = False
 
 def check_create_data_snapshot():
     global LOCK
+    global IGNORE_SNAPSHOT
+    global FIRST_INIT
     try:
         this_time = time.time()
         newer_file, newer_time = last_modify_file(DATA_SOURCE)
@@ -153,11 +155,15 @@ def check_create_data_snapshot():
                 return
         data_source = with_sort(find_data_source())
         if data_source is None:
-            return create_data_snapshot()
+            create_data_snapshot()
+            return
         if get_size(DATA_SOURCE) != get_size(f"{ZPOOL_MOUNT}/{data_source.name}"):
-            return create_data_snapshot()
+            create_data_snapshot()
+            return
     except Exception as e:
         print(e)
+    FIRST_INIT = True
+    IGNORE_SNAPSHOT = None
     LOCK = False
 
 
@@ -183,10 +189,8 @@ async def store_services():
     global UPTIME_SNAPSHOTS
     global LOCK
     global FIRST_INIT
-    if not FIRST_INIT:
-        return
     await nc.publish(f"{SERVICE_NAME}-mounted",
-                     bytes(json.dumps({"hostname": HOSTNAME, "snapshots": UPTIME_SNAPSHOTS, "block": LOCK}), 'utf-8'))
+                     bytes(json.dumps({"hostname": HOSTNAME, "snapshots": UPTIME_SNAPSHOTS, "block": LOCK, "prepare": IGNORE_SNAPSHOT}), 'utf-8'))
 
 
 async def uptime_handler(msg):
