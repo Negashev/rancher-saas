@@ -1,6 +1,7 @@
 import copy
 import json
 import os
+import random
 import time
 from hashlib import sha1
 
@@ -11,6 +12,7 @@ from nats.aio.client import Client as NATS
 SERVICE_NAME = os.getenv("SERVICE_NAME", "service")
 NATS_DSN = os.getenv("NATS_DSN", "nats://nats:4222")
 ZPOOL_NAME = os.getenv("ZPOOL_NAME", "zpool1")
+UPTIME_TIMEOUT = int(os.getenv("UPTIME_TIMEOUT", 5))
 
 UPTIME_SNAPHOTS = {}
 STATUS = {}
@@ -20,22 +22,37 @@ async def find_free_server():
     global UPTIME_SNAPHOTS
     servers = copy.deepcopy(UPTIME_SNAPHOTS)
     mounts = 10000000000000000
-    this_time = int(time.time()) - 10
+    this_time = int(time.time()) - UPTIME_TIMEOUT
     most_free_server = None
+    equal_free_servers = []
     for i in servers.keys():
         # very new very free server
         len_snapshots = len(servers[i]['snapshots'])
-        # if not servers[i]['block'] and servers[i]['uptime'] >= this_time and len_snapshots <= mounts:
-        if servers[i]['uptime'] >= this_time and len_snapshots <= mounts:
+        print(i)
+        if not servers[i]['block'] and servers[i]['uptime'] >= this_time and len_snapshots <= mounts:
+        # if servers[i]['uptime'] >= this_time and len_snapshots <= mounts:
+            if mounts == len_snapshots:
+                equal_free_servers.append(most_free_server)
+                equal_free_servers.append(i)
+            elif len_snapshots < mounts:
+                # reset free servers
+                equal_free_servers = []
             mounts = len_snapshots
             most_free_server = i
-    return most_free_server
+    if len(equal_free_servers):
+        return random.choice(list(set(equal_free_servers)))
+    else:
+        return most_free_server
 
 
 # urls
 async def get_version(request):
     return request.Response(text='2')
 
+
+async def api_find_free_server(request):
+    return request.Response(json={"message": await find_free_server()},
+                            code=200 if request.nc.is_connected else 500)
 
 async def list_services(request):
     global UPTIME_SNAPHOTS
@@ -105,9 +122,9 @@ async def cleanup_service(request):
 # subscribe
 async def mounted(msg):
     global UPTIME_SNAPHOTS
-    this_time = int(time.time())
     data = json.loads(msg.data.decode())
-    UPTIME_SNAPHOTS[data['hostname']] = {"uptime": this_time, 'snapshots': data['snapshots'], "block":  data['block']}
+    data.update({"uptime": int(time.time())})
+    UPTIME_SNAPHOTS[data['hostname']] = data
 
 
 async def update_status(msg):
@@ -179,4 +196,5 @@ router.add_route('/find/{uuid}', find_service_uuid)
 router.add_route('/uptime/{sha1}', service_uptime)
 router.add_route('/uptime/{sha1}/{time}', service_uptime)
 router.add_route('/cleanup/{sha1}', cleanup_service)
+router.add_route('/find_free_server', api_find_free_server)
 app.run(debug=bool(int(os.getenv('DEBUG', 0))))
