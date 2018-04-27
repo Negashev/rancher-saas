@@ -3,7 +3,7 @@ RUN apk add --update git
 RUN go get github.com/jpillora/go-tcp-proxy/cmd/tcp-proxy
 
 FROM alpine
-
+EXPOSE 8080
 RUN apk add --update python3
 RUN apk add --update supervisor
 RUN apk add --no-cache --virtual .build-deps py3-pip build-base python3-dev \
