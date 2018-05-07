@@ -4,7 +4,6 @@ import os
 import re
 import socket
 import time
-import uuid
 
 import requests
 from aiodocker.docker import Docker
@@ -34,6 +33,8 @@ LOCK = False
 FIRST_INIT = False
 UPTIME_SNAPSHOTS = {}
 IGNORE_SNAPSHOT = None
+# first init
+DATA_SOURCE_TIME = 10000000000000000
 
 
 def find_service_dirs():
@@ -67,8 +68,8 @@ async def container_by_data(container, const_find_service_dirs):
             # get port
             container_port = await container.port(SERVICE_PORT)
             host_data = get_container_hostdata(container_port[0])
-            UPTIME_SNAPSHOTS[i.name] = {"uptime": int(time.time()) + 7200,
-                                       "address": f"{host_data['HostIp']}:{host_data['HostPort']}"}
+            UPTIME_SNAPSHOTS[i.name] = {"uptime": int(time.time()) + 1800,
+                                        "address": f"{host_data['HostIp']}:{host_data['HostPort']}"}
 
 
 async def datanode_first_up():
@@ -104,6 +105,7 @@ def find_data_source(with_snapshots=True):
 
 def with_sort(data_source, reverse=True):
     global LOCK
+    global DATA_SOURCE_TIME
     '''
     :param data_source: list[ZFSFilesystem]
     :param reverse: bool
@@ -114,12 +116,14 @@ def with_sort(data_source, reverse=True):
     data_source.sort(key=lambda x: x.name, reverse=reverse)
     if reverse:
         if len(data_source):
+            DATA_SOURCE_TIME = int(re.sub(rf"^({ZPOOL_NAME}/{SERVICE_NAME}-)", "", data_source[0].name))
             return data_source[0]
     else:
         # find oldest source data (but stay one)
         if len(data_source) >= 2:
             return data_source[:-1]
     return None
+
 
 def create_data_snapshot():
     global LOCK
@@ -138,6 +142,7 @@ def create_data_snapshot():
     IGNORE_SNAPSHOT = None
     FIRST_INIT = True
     LOCK = False
+
 
 def check_create_data_snapshot():
     global LOCK
@@ -190,7 +195,8 @@ async def store_services():
     global LOCK
     global FIRST_INIT
     await nc.publish(f"{SERVICE_NAME}-mounted",
-                     bytes(json.dumps({"hostname": HOSTNAME, "snapshots": UPTIME_SNAPSHOTS, "block": LOCK, "prepare": IGNORE_SNAPSHOT}), 'utf-8'))
+                     bytes(json.dumps({"hostname": HOSTNAME, "snapshots": UPTIME_SNAPSHOTS, "block": LOCK,
+                                       "prepare": IGNORE_SNAPSHOT, "data_source_time": DATA_SOURCE_TIME}), 'utf-8'))
 
 
 async def uptime_handler(msg):
@@ -224,7 +230,6 @@ async def delivery_handler(msg):
     clone_name = f"{ZPOOL_NAME}/from-snapshot-{SERVICE_NAME}-{data}"
     UPTIME_SNAPSHOTS[clone_name] = {"uptime": int(time.time()) + 300}
     await store_services()
-
 
     cmd.append(clone_name)
     try:
@@ -264,12 +269,14 @@ async def delivery_handler(msg):
         if e.status == 404:
             print(f"Pull image {SERVICE_IMAGE}")
             await nc.publish(f"{SERVICE_NAME}-status",
-                             bytes(json.dumps({"sha1": data, "message": f"Pull image {SERVICE_IMAGE} on '{HOSTNAME}'"}), "utf-8"))
+                             bytes(json.dumps({"sha1": data, "message": f"Pull image {SERVICE_IMAGE} on '{HOSTNAME}'"}),
+                                   "utf-8"))
             await docker.pull(SERVICE_IMAGE)
         else:
             print(f'Error retrieving {SERVICE_IMAGE} image.')
             await nc.publish(f"{SERVICE_NAME}-status",
-                             bytes(json.dumps({"sha1": data, "error": f"Error retrieving {SERVICE_IMAGE} image on '{HOSTNAME}'"}),
+                             bytes(json.dumps(
+                                 {"sha1": data, "error": f"Error retrieving {SERVICE_IMAGE} image on '{HOSTNAME}'"}),
                                    "utf-8"))
             clone_name_zfs.destroy(defer=True)
             return
@@ -294,13 +301,14 @@ async def delivery_handler(msg):
         host_data = get_container_hostdata(container_port[0])
 
         UPTIME_SNAPSHOTS[clone_name] = {"uptime": int(time.time()) + 60,
-                                       "address": f"{host_data['HostIp']}:{host_data['HostPort']}"}
+                                        "address": f"{host_data['HostIp']}:{host_data['HostPort']}"}
         # ping uptime
         await store_services()
         print(f"Done {data}")
-        await nc.publish(f"{SERVICE_NAME}-status", bytes(json.dumps({"sha1": data, "message": f"Done {data} on {host_data['HostIp']}:{host_data['HostPort']}",
-                                                                     "address": f"{host_data['HostIp']}:{host_data['HostPort']}",
-                                                                     "uuid": data}), "utf-8"))
+        await nc.publish(f"{SERVICE_NAME}-status", bytes(
+            json.dumps({"sha1": data, "message": f"Done {data} on {host_data['HostIp']}:{host_data['HostPort']}",
+                        "address": f"{host_data['HostIp']}:{host_data['HostPort']}",
+                        "uuid": data}), "utf-8"))
 
         return
     except Exception as e:
@@ -341,8 +349,9 @@ async def cleanup_service(msg):
 # url
 async def list_services(request):
     global UPTIME_SNAPSHOTS
+    #  if DATA_SOURCE_TIME is more 26 hours (93600 seconds)
     return request.Response(json=UPTIME_SNAPSHOTS,
-                            code=200 if request.nc.is_connected else 500)
+                            code=200 if request.nc.is_connected and DATA_SOURCE_TIME > (int(time.time()) - 93600) else 500)
 
 
 async def remove_sleep_docker(snapshot):
@@ -403,6 +412,7 @@ async def connect_scheduler():
     docker = Docker()
     app.extend_request(lambda x: docker, name='docker', property=True)
 
+
 async def check_first_init():
     global FIRST_INIT
     data_source = with_sort(find_data_source())
@@ -412,6 +422,7 @@ async def check_first_init():
     if get_size(DATA_SOURCE) == get_size(f"{ZPOOL_MOUNT}/{data_source.name}"):
         FIRST_INIT = True
         return
+
 
 app = Application()
 nc = NATS()

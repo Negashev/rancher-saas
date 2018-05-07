@@ -97,7 +97,7 @@ async def find_service_uuid(request):
 
 async def service_uptime(request):
     match_dict = request.match_dict
-    this_time = 7200
+    this_time = 1800
     if 'time' in match_dict.keys():
         this_time = int(match_dict['time'])
     await nc.publish(f"{SERVICE_NAME}-uptime",

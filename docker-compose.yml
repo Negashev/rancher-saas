@@ -42,7 +42,7 @@ services:
 #      - 8080
   data:
     build: .
-    image: negash/rancher-saas:zfs
+    image: negash/rancher-saas:latest
     privileged: true
     pid: host
     stdin_open: true
@@ -61,7 +61,7 @@ services:
       USE_IP_ADDR: 192.168.122.23
   delivery:
     build: .
-    image: negash/rancher-saas:zfs
+    image: negash/rancher-saas:latest
     stdin_open: true
     tty: true
     command: python3 -m japronto delivery.app --reload
