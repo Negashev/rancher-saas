@@ -22,6 +22,7 @@ ZPOOL_MOUNT = os.getenv("ZPOOL_MOUNT", "/mnt")
 SERVICE_NAME = os.getenv("SERVICE_NAME", "service")
 DATA_SOURCE = os.getenv("DATA_SOURCE", "/source")
 NATS_DSN = os.getenv("NATS_DSN", "nats://nats:4222")
+DATA_SOURCE_FREEZE_TIME = 60 * 60 * int(os.getenv("DATA_SOURCE_FREEZE_TIME", 26)) # default 26 hours
 HOSTNAME = os.getenv("HOSTNAME", socket.gethostname())
 
 # for docker container
@@ -277,7 +278,7 @@ async def delivery_handler(msg):
             await nc.publish(f"{SERVICE_NAME}-status",
                              bytes(json.dumps(
                                  {"sha1": data, "error": f"Error retrieving {SERVICE_IMAGE} image on '{HOSTNAME}'"}),
-                                   "utf-8"))
+                                 "utf-8"))
             clone_name_zfs.destroy(defer=True)
             return
     try:
@@ -351,7 +352,8 @@ async def list_services(request):
     global UPTIME_SNAPSHOTS
     #  if DATA_SOURCE_TIME is more 26 hours (93600 seconds)
     return request.Response(json=UPTIME_SNAPSHOTS,
-                            code=200 if request.nc.is_connected and DATA_SOURCE_TIME > (int(time.time()) - 93600) else 500)
+                            code=200 if request.nc.is_connected and DATA_SOURCE_TIME > (
+                                        int(time.time()) - DATA_SOURCE_FREEZE_TIME) else 500)
 
 
 async def remove_sleep_docker(snapshot):
