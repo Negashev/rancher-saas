@@ -22,7 +22,7 @@ ZPOOL_MOUNT = os.getenv("ZPOOL_MOUNT", "/mnt")
 SERVICE_NAME = os.getenv("SERVICE_NAME", "service")
 DATA_SOURCE = os.getenv("DATA_SOURCE", "/source")
 NATS_DSN = os.getenv("NATS_DSN", "nats://nats:4222")
-DATA_SOURCE_FREEZE_TIME = 60 * 60 * int(os.getenv("DATA_SOURCE_FREEZE_TIME", 26)) # default 26 hours
+DATA_SOURCE_FREEZE_TIME = 60 * 60 * int(os.getenv("DATA_SOURCE_FREEZE_TIME", 26))  # default 26 hours
 HOSTNAME = os.getenv("HOSTNAME", socket.gethostname())
 
 # for docker container
@@ -130,6 +130,7 @@ def create_data_snapshot():
     global LOCK
     global IGNORE_SNAPSHOT
     global FIRST_INIT
+    global DATA_SOURCE_TIME
     this_time = int(time.time())
     new_zfs_name = f"{ZPOOL_NAME}/{SERVICE_NAME}-{this_time}"
     LOCK = True
@@ -140,6 +141,8 @@ def create_data_snapshot():
     recursive_copy_and_sleep(SLEEP_TIME, DATA_SOURCE, mkdir_with_chmod(f"{ZPOOL_MOUNT}/{new_zfs.name}"))
     print(f"Make snapshot {new_zfs_name}")
     new_zfs.snapshot('snapshot')
+    # set DATA_SOURCE_TIME for
+    DATA_SOURCE_TIME = int(re.sub(rf"^({ZPOOL_NAME}/{SERVICE_NAME}-)", "", new_zfs.name))
     IGNORE_SNAPSHOT = None
     FIRST_INIT = True
     LOCK = False
@@ -197,7 +200,7 @@ async def store_services():
     global FIRST_INIT
     await nc.publish(f"{SERVICE_NAME}-mounted",
                      bytes(json.dumps({"hostname": HOSTNAME, "snapshots": UPTIME_SNAPSHOTS, "block": LOCK,
-                                       "prepare": IGNORE_SNAPSHOT, "data_source_time": DATA_SOURCE_TIME}), 'utf-8'))
+                                       "prepare": IGNORE_SNAPSHOT, "data_source_time": DATA_SOURCE_TIME, "first_init": FIRST_INIT}), 'utf-8'))
 
 
 async def uptime_handler(msg):
@@ -350,10 +353,15 @@ async def cleanup_service(msg):
 # url
 async def list_services(request):
     global UPTIME_SNAPSHOTS
-    #  if DATA_SOURCE_TIME is more 26 hours (93600 seconds)
-    return request.Response(json=UPTIME_SNAPSHOTS,
-                            code=200 if request.nc.is_connected and DATA_SOURCE_TIME > (
+    global FIRST_INIT
+    if FIRST_INIT:
+        #  if DATA_SOURCE_TIME is more 26 hours (93600 seconds)
+        return request.Response(json=UPTIME_SNAPSHOTS,
+                                code=200 if request.nc.is_connected and DATA_SOURCE_TIME > (
                                         int(time.time()) - DATA_SOURCE_FREEZE_TIME) else 500)
+    else:
+        return request.Response(json=UPTIME_SNAPSHOTS,
+                                code=200 if request.nc.is_connected else 500)
 
 
 async def remove_sleep_docker(snapshot):

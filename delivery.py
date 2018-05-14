@@ -28,8 +28,7 @@ async def find_free_server():
     for i in servers.keys():
         # very new very free server
         len_snapshots = len(servers[i]['snapshots'])
-        print(i)
-        if not servers[i]['block'] and servers[i]['prepare'] is None and servers[i]['uptime'] >= this_time and len_snapshots <= mounts:
+        if not servers[i]['block'] and servers[i]['first_init'] and servers[i]['prepare'] is None and servers[i]['uptime'] >= this_time and len_snapshots <= mounts:
         # if servers[i]['uptime'] >= this_time and len_snapshots <= mounts:
             if mounts == len_snapshots:
                 equal_free_servers.append(most_free_server)
