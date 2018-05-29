@@ -2,8 +2,6 @@ FROM alpine
 
 WORKDIR /src
 
-ENV DATA_DIR=/data
-
 VOLUME /source
 
 RUN apk add --update python3
