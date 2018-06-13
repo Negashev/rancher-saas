@@ -11,7 +11,11 @@ def guuid(request):
     return request.Response(text=get_service_uuid())
 
 
+# read prefix
+f = open('/tmp/prefix.file', 'r')
+prefix = f.read()
+
 app = Application()
 app.router.add_route('/', gsa)
 app.router.add_route('/uuid', guuid)
-app.run(host='0.0.0.0', port=int(os.getenv('IP_SERVICE_PORT', 8080)))
+app.run(host='0.0.0.0', port=int(os.getenv(f'{prefix}IP_SERVICE_PORT', 8080)))

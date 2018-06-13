@@ -3,6 +3,7 @@ import socket
 import uuid
 from time import sleep
 from hashlib import sha1
+import argparse
 
 import requests
 
@@ -11,9 +12,17 @@ from service_uuid import get_service_uuid, set_service_uuid
 status = True
 message = ''
 
-SAAS_DELIVERY_TRANSPORT = os.getenv('SAAS_DELIVERY_TRANSPORT', 'http')
-SAAS_DELIVERY_URL = os.getenv('SAAS_DELIVERY_URL', '192.168.122.23')
-SAAS_DELIVERY_PORT = os.getenv('SAAS_DELIVERY_PORT', 8080)
+parser = argparse.ArgumentParser()
+parser.add_argument("-p", "--prefix", help="Prefix for SAAS_* ENV'S", default='', nargs='?', type=str)
+args = parser.parse_args()
+
+SAAS_DELIVERY_TRANSPORT = os.getenv(f'{args.prefix}SAAS_DELIVERY_TRANSPORT', 'http')
+SAAS_DELIVERY_URL = os.getenv(f'{args.prefix}SAAS_DELIVERY_URL', '192.168.122.23')
+SAAS_DELIVERY_PORT = os.getenv(f'{args.prefix}SAAS_DELIVERY_PORT', 8080)
+
+# save prefix
+with open('/tmp/prefix.file', 'w') as f:
+    f.write(args.prefix)
 
 
 def sha(string):
@@ -46,7 +55,7 @@ def api_wait(url, status_codes=None, timeout=5):
 def check_open_port(address, kill_proxy=True, wait_time=60):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     host, port = address.split(':')
-    for i in range(int(os.getenv('WAITING_TIME', wait_time))):
+    for i in range(int(os.getenv(f'{args.prefix}WAITING_TIME', wait_time))):
         result = sock.connect_ex((host, int(port)))
         # if port is open save file! and start work proxy
         print(f'Ping service port {i} seconds')
@@ -124,7 +133,7 @@ def get_status(_uuid, status_codes=None):
 
 
 # set uuid
-INHERITED_SERVICE_UUID = os.getenv("INHERITED_SERVICE_UUID", "")
+INHERITED_SERVICE_UUID = os.getenv(f"{args.prefix}INHERITED_SERVICE_UUID", "")
 if INHERITED_SERVICE_UUID == "":
     if os.path.isfile('/tmp/uuid.file'):
         INHERITED_SERVICE_UUID = get_service_uuid()
@@ -135,7 +144,7 @@ set_service_uuid(INHERITED_SERVICE_UUID)
 
 # check local save file and ping service if exist
 with open('/tmp/local.file', 'w') as local:
-    PROXY_ADDR = os.getenv("PROXY_ADDR", "0.0.0.0:80")
+    PROXY_ADDR = os.getenv(f"{args.prefix}PROXY_ADDR", "0.0.0.0:80")
     if PROXY_ADDR.startswith("tcp://"):
         PROXY_ADDR = PROXY_ADDR[len("tcp://"):]
     local.write(PROXY_ADDR)

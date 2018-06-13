@@ -6,12 +6,16 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 
 from service_uuid import get_service_uuid
 
-SAAS_DELIVERY_TRANSPORT = os.getenv('SAAS_DELIVERY_TRANSPORT', 'http')
-SAAS_DELIVERY_URL = os.getenv('SAAS_DELIVERY_URL', '192.168.122.23')
-SAAS_DELIVERY_PORT = os.getenv('SAAS_DELIVERY_PORT', 8080)
+# read prefix
+f = open('/tmp/prefix.file', 'r')
+prefix = f.read()
 
-PING_TIME = os.getenv('PING_TIME', 7200)
-if 'PING_TMP' in os.environ:
+SAAS_DELIVERY_TRANSPORT = os.getenv(f'{prefix}SAAS_DELIVERY_TRANSPORT', 'http')
+SAAS_DELIVERY_URL = os.getenv(f'{prefix}SAAS_DELIVERY_URL', '192.168.122.23')
+SAAS_DELIVERY_PORT = os.getenv(f'{prefix}SAAS_DELIVERY_PORT', 8080)
+
+PING_TIME = os.getenv(f'{prefix}PING_TIME', 7200)
+if f'{prefix}PING_TMP' in os.environ:
     PING_TIME = 15 * 60
 
 service_sha1 = sha1(get_service_uuid().encode('utf-8')).hexdigest()

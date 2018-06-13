@@ -1,12 +1,6 @@
-import json
-import os
-from urllib.parse import urlparse
-
-
-def get_service_address(file_path='/tmp/proxy.file'):
-    if 'SERVICE_ADDR' in os.environ:
-        service_address = os.getenv('SERVICE_ADDR')
-    else:
+def get_service_address(SERVICE_ADDR=None, file_path='/tmp/proxy.file'):
+    service_address = SERVICE_ADDR
+    if service_address is None:
         f = open(file_path, 'r')
         service_address = f.read()
     return service_address
