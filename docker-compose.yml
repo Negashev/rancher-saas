@@ -1,75 +1,55 @@
 version: '2'
 services:
-  source-cloner:
-    image: minio/mc
-    command: mirror --overwrite --remove /data/ /source
-    volumes:
-      - ./tmp/worker:/data
-      - ./tmp/remote_source:/source
-#  ignite:
-#    image: apacheignite/ignite:2.3.0
-#    environment:
-#      JVM_OPTS: -XX:+UseG1GC
-#      OPTION_LIBS: ignite-zookeeper,ignite-rest-http
-#      CONFIG_URI: /src/ignite-zookeeper.xml
-#    links:
-#      - zookeeper:zk.zookeeper.rancher.internal
-#    volumes:
-#      - ./:/src
-#  zookeeper:
-#    image: zookeeper
-#    ports:
-#      - 2181:2181
-#  nats-1:
-#    image: nats
-#    command: -p 4222 --http_port 8080 -cluster nats://0.0.0.0:5222 -routes nats://nats-2:5222,nats://nats-3:5222 -D
-#    ports:
-#      - 8080
-#  nats-2:
-#    image: nats
-#    command: -p 4222 --http_port 8080 -cluster nats://0.0.0.0:5222 -routes nats://nats-1:5222,nats://nats-3:5222 -D
-#    ports:
-#      - 8080
-#  nats-3:
-#    image: nats
-#    command: -p 4222 --http_port 8080 -cluster nats://0.0.0.0:5222 -routes nats://nats-1:5222,nats://nats-2:5222 -D
-#    ports:
-#      - 8080
-#  nats:
-#    image: nats
-#    command: -p 4222 --http_port 8080 -cluster nats://0.0.0.0:5222 -routes nats://nats-1:5222,nats://nats-2:5222,nats://nats-3:5222 -D
-#    ports:
-#      - 8080
-  data:
-    build: .
-    image: negash/rancher-saas:latest
+  datanode:
     privileged: true
-    pid: host
-    stdin_open: true
-    tty: true
-    command: python3 -m japronto data.app --reload
-    working_dir: /opt/project
-    ports:
-      - 8000:8080
-    volumes:
-      - /home/negash/Dropbox/PycharmProjects/rancher-saas:/opt/project
-      - /data-source:/source
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /mnt:/mnt:shared
-    environment:
-      DEBUG: 1
-      USE_IP_ADDR: 192.168.122.23
-  delivery:
-    build: .
     image: negash/rancher-saas:latest
+    environment:
+      NATS_DSN: nats://nats:4222
+      SERVICE_NAME: mysql
+      DATA_SOURCE_FREEZE_TIME: '25'
+      SERVICE_ENV_MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+      SERVICE_PORT: 3306/tcp
+      SERVICE_IMAGE: mariadb:5.5
+      SERVICE_VOLUME: /var/lib/mysql
+      SERVICE_CMD: mysqld --defaults-file=/var/lib/mysql/my.cnf --innodb_log_buffer_size=256M --innodb_log_file_size=512M --max_connections=2000 --character-set-server=utf8
+      SERVICE_ENV_MYSQL_DATABASE: mysq_database
+      USE_RANCHER: '1'
     stdin_open: true
-    tty: true
-    command: python3 -m japronto delivery.app --reload
-    working_dir: /opt/project
-    ports:
-      - 8080:8080
+    links:
+    - nats:nats
     volumes:
-      - /home/negash/Dropbox/PycharmProjects/rancher-saas:/opt/project
+    - /var/run/docker.sock:/var/run/docker.sock
+    - /mnt:/mnt:shared
+    - /mysql_source_data_from_nfs:/source
+    tty: true
+    pid: host
+    command:
+    - python3
+    - -m
+    - japronto
+    - data.app
+    labels:
+      io.rancher.container.hostname_override: container_name
+      io.rancher.container.pull_image: always
+      io.rancher.scheduler.affinity:host_label_ne: no=saas
+      io.rancher.scheduler.global: 'true'
+  delivery:
+    image: negash/rancher-saas:latest
+    environment:
+      NATS_DSN: nats://nats:4222
+      SERVICE_NAME: mysql
+    stdin_open: true
+    links:
+    - nats:nats
+    tty: true
+    command:
+    - python3
+    - -m
+    - japronto
+    - delivery.app
+    labels:
+      io.rancher.scheduler.global: 'true'
+      io.rancher.container.hostname_override: container_name
   nats-1:
     image: nats
     command: -p 4222 --http_port 8080 -cluster nats://0.0.0.0:5222 -routes nats://nats-2:5222,nats://nats-3:5222 -D
