@@ -36,6 +36,7 @@ UPTIME_SNAPSHOTS = {}
 IGNORE_SNAPSHOT = None
 # first init
 DATA_SOURCE_TIME = 10000000000000000
+TEST_TIME = None
 
 
 def find_service_dirs():
@@ -125,13 +126,88 @@ def with_sort(data_source, reverse=True):
             return data_source[:-1]
     return None
 
+async def test_data_snaphost():
+    global LOCK
+    global IGNORE_SNAPSHOT
+    global FIRST_INIT
+    global SERVICE_NAME
+    global TEST_TIME
+    if TEST_TIME is None:
+        return
+    this_time = TEST_TIME
+    await nc.publish(f"{SERVICE_NAME}-delivery-{HOSTNAME}", bytes(f'lets_test-{this_time}', 'utf-8'))
+    # wait to create test container
+    waiting = 30
+    docker = Docker()
+    test_container = None
+    while waiting > 0:
+        try:
+            for container in (await docker.containers.list()):
+                if f"/{SERVICE_NAME}-lets_test-{this_time}" in container._container['Names']:
+                    test_container = container
+                    waiting = 0
+        except Exception as e:
+            print(e)
+        await asyncio.sleep(1)
+        waiting = waiting - 1
+    if test_container is None:
+        print(f"Can't find {SERVICE_NAME}-lets_test-{this_time}")
+        await docker.close()
+        TEST_TIME = None
+        return
+    print(f'Find {SERVICE_NAME}-lets_test-{this_time}')
+    # check if container stats good
+    test_start_success = False
+    waiting = 30
+    while waiting > 0:
+        container_show = await test_container.show()
+        for key, value in container_show.items():
+            if key == 'State' and value['Status'] == 'running':
+                test_start_success = True
+                waiting = 0
+        await asyncio.sleep(1)
+        waiting = waiting - 1
+    if not test_start_success:
+        print(f"{SERVICE_NAME}-lets_test-{this_time} not start!")
+        await test_container.delete(force=True)
+        await docker.close()
+        TEST_TIME = None
+        return
+    print(f'Success started {SERVICE_NAME}-lets_test-{this_time}')
+    # check if container stats good with mounted data
+    await asyncio.sleep(int(os.getenv('CHECK_CONTAINER_STATUS_AFTER_TIME', 30)))
+    test_container_with_data_success = False
+    try:
+        container_show = await test_container.show()
+        for key, value in container_show.items():
+            if key == 'State' and value['Status'] == 'running':
+                test_container_with_data_success = True
+    except Exception as e:
+        print(e)
+    if not test_container_with_data_success:
+        print(f"{SERVICE_NAME}-lets_test-{this_time} broke due to incorrect data!")
+        await test_container.delete(force=True)
+        await docker.close()
+        TEST_TIME = None
+        return
+    print(f'Success tested {SERVICE_NAME}-lets_test-{this_time}')
+    await test_container.delete(force=True)
+    await docker.close()
+    print(f'All is correct, unlock datanode and start continue')
+    # All is correct unlock datanode and start continue
+    TEST_TIME = None
+    IGNORE_SNAPSHOT = None
+    FIRST_INIT = True
+    LOCK = False
 
 def create_data_snapshot():
     global LOCK
     global IGNORE_SNAPSHOT
     global FIRST_INIT
     global DATA_SOURCE_TIME
-    this_time = int(time.time())
+    global UPTIME_SNAPSHOTS
+    global TEST_TIME
+    this_time = str(int(time.time()))
     new_zfs_name = f"{ZPOOL_NAME}/{SERVICE_NAME}-{this_time}"
     LOCK = True
     IGNORE_SNAPSHOT = new_zfs_name
@@ -143,10 +219,15 @@ def create_data_snapshot():
     new_zfs.snapshot('snapshot')
     # set DATA_SOURCE_TIME for
     DATA_SOURCE_TIME = int(re.sub(rf"^({ZPOOL_NAME}/{SERVICE_NAME}-)", "", new_zfs.name))
-    IGNORE_SNAPSHOT = None
-    FIRST_INIT = True
-    LOCK = False
-
+    print(f'Ping test with lets_test-{this_time}')
+    TEST_TIME = this_time
+    wating = int(os.getenv('CHECK_CONTAINER_STATUS_WAIT_TIME', 90))
+    while wating > 0:
+        if TEST_TIME is None:
+            break
+        time.sleep(1)
+        wating = wating - 1
+    print(f"End test with lets_test-{this_time}")
 
 def check_create_data_snapshot():
     global LOCK
@@ -200,7 +281,8 @@ async def store_services():
     global FIRST_INIT
     await nc.publish(f"{SERVICE_NAME}-mounted",
                      bytes(json.dumps({"hostname": HOSTNAME, "snapshots": UPTIME_SNAPSHOTS, "block": LOCK,
-                                       "prepare": IGNORE_SNAPSHOT, "data_source_time": DATA_SOURCE_TIME, "first_init": FIRST_INIT}), 'utf-8'))
+                                       "prepare": IGNORE_SNAPSHOT, "data_source_time": DATA_SOURCE_TIME,
+                                       "first_init": FIRST_INIT}), 'utf-8'))
 
 
 async def uptime_handler(msg):
@@ -213,10 +295,17 @@ async def uptime_handler(msg):
 
 
 async def delivery_handler(msg):
+    global IGNORE_SNAPSHOT
+    global SERVICE_NAME
+    global ZPOOL_NAME
+    global UPTIME_SNAPSHOTS
     # ping status NC
     data = msg.data.decode()
     await nc.publish(f"{SERVICE_NAME}-status", bytes(json.dumps({"sha1": data, "message": "start delivery"}), "utf-8"))
-    data_source = with_sort(find_data_source())
+    if data.startswith('lets_test-'):
+        data_source = zfs.open(IGNORE_SNAPSHOT)
+    else:
+        data_source = with_sort(find_data_source())
     if data_source is None:
         await nc.publish(f"{SERVICE_NAME}-status",
                          bytes(json.dumps({"sha1": data, "error": "Data source not found"}), "utf-8"))
@@ -398,6 +487,15 @@ async def remove_sleep():
             return
 
 
+async def pull_image(message=False):
+    global SERVICE_IMAGE
+    if message:
+        print(f'First pull image {SERVICE_IMAGE}')
+    docker = Docker()
+    await docker.pull(SERVICE_IMAGE)
+    await docker.close()
+
+
 # init
 async def connect_nats(app):
     await nc.connect(servers=[NATS_DSN], io_loop=app.loop, max_reconnect_attempts=-1, verbose=True)
@@ -414,8 +512,11 @@ async def connect_scheduler():
     scheduler.add_job(destroy_data_snapshot, 'interval', seconds=20)
 
     scheduler.add_job(store_services, 'interval', seconds=1)
+    scheduler.add_job(test_data_snaphost, 'interval', seconds=5)
 
     scheduler.add_job(remove_sleep, 'interval', seconds=60)
+
+    scheduler.add_job(pull_image, 'interval', seconds=int(os.getenv('PULL_IMAGE', 600)))
 
     scheduler.start()
     # add docker to japronto app
@@ -437,6 +538,7 @@ async def check_first_init():
 app = Application()
 nc = NATS()
 app.loop.run_until_complete(connect_nats(app))
+app.loop.run_until_complete(pull_image(message=True))
 app.loop.run_until_complete(datanode_first_up())
 app.loop.run_until_complete(check_first_init())
 app.loop.run_until_complete(store_services())
