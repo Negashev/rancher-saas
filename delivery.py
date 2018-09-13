@@ -87,7 +87,7 @@ async def find_service_uuid(request):
     data = sha1(uuid.encode('utf-8')).hexdigest()
     free_server = await find_free_server()
     if free_server:
-        await request.nc.publish(f"{SERVICE_NAME}-delivery-{free_server}", bytes(data, 'utf-8'))
+        await request.nc.publish(f"{SERVICE_NAME}-delivery-{free_server}", bytes(json.dumps({"uuid":uuid,"data":data}), 'utf-8'))
         return request.Response(json={"message": f"Delivery '{data}' on '{free_server}' SAAS server"},
                                 code=200 if request.nc.is_connected else 500)
     return request.Response(json={"error": "SAAS servers not found"},

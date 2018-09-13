@@ -61,17 +61,24 @@ def get_container_hostdata(host_data):
 
 async def container_by_data(container, const_find_service_dirs):
     global UPTIME_SNAPSHOTS
+    global SERVICE_NAME
     container_names = container._container['Names']
     for i in const_find_service_dirs:
         tmp_container_name = re.sub(rf"^({ZPOOL_NAME}/from-snapshot-)", "/", i.name)
         if tmp_container_name in container_names:
             # resolve all date for this container
-            await container.show()
+            container_show = await container.show()
             # get port
             container_port = await container.port(SERVICE_PORT)
             host_data = get_container_hostdata(container_port[0])
+            uuid = None
+            try:
+                uuid = container_show['Config']['Labels'][f"{SERVICE_NAME}-saas"]
+            except Exception as e:
+                pass
             UPTIME_SNAPSHOTS[i.name] = {"uptime": int(time.time()) + 1800,
-                                        "address": f"{host_data['HostIp']}:{host_data['HostPort']}"}
+                                        "address": f"{host_data['HostIp']}:{host_data['HostPort']}",
+                                        "uuid": uuid}
 
 
 async def datanode_first_up():
@@ -135,7 +142,7 @@ async def test_data_snaphost():
     if TEST_TIME is None:
         return
     this_time = TEST_TIME
-    await nc.publish(f"{SERVICE_NAME}-delivery-{HOSTNAME}", bytes(f'lets_test-{this_time}', 'utf-8'))
+    await nc.publish(f"{SERVICE_NAME}-delivery-{HOSTNAME}", bytes(json.dumps({"uuid":f'lets_test-{this_time}',"data":f'lets_test-{this_time}'}), 'utf-8'))
     # wait to create test container
     waiting = 30
     docker = Docker()
@@ -300,7 +307,9 @@ async def delivery_handler(msg):
     global ZPOOL_NAME
     global UPTIME_SNAPSHOTS
     # ping status NC
-    data = msg.data.decode()
+    loads = json.loads(msg.data.decode())
+    data = loads['data']
+    uuid = loads['uuid']
     await nc.publish(f"{SERVICE_NAME}-status", bytes(json.dumps({"sha1": data, "message": "start delivery"}), "utf-8"))
     if data.startswith('lets_test-'):
         data_source = zfs.open(IGNORE_SNAPSHOT)
@@ -350,7 +359,8 @@ async def delivery_handler(msg):
         "ExposedPorts": {SERVICE_PORT: {}},
         "PortBindings": {SERVICE_PORT: [{'HostPort': None}]},
         "Binds": [f"{os.path.join(ZPOOL_MOUNT, clone_name)}:{SERVICE_VOLUME}"],
-        "Env": [f"{i[12:]}={os.getenv(i)}" for i in os.environ if i.startswith('SERVICE_ENV_')]
+        "Env": [f"{i[12:]}={os.getenv(i)}" for i in os.environ if i.startswith('SERVICE_ENV_')],
+        "Labels": {f"{SERVICE_NAME}-saas":uuid}
 
     }
     if 'SERVICE_CMD' in os.environ:
@@ -390,18 +400,25 @@ async def delivery_handler(msg):
         await nc.publish(f"{SERVICE_NAME}-status",
                          bytes(json.dumps({"sha1": data, "message": f"Get port for {SERVICE_NAME}-{data}"}), "utf-8"))
         container_port = await container.port(SERVICE_PORT)
-        await docker.close()
         host_data = get_container_hostdata(container_port[0])
 
+        uuid = None
+        try:
+            container_show = await container.show()
+            uuid = container_show['Config']['Labels'][f"{SERVICE_NAME}-saas"]
+        except Exception as e:
+            pass
+        await docker.close()
         UPTIME_SNAPSHOTS[clone_name] = {"uptime": int(time.time()) + 60,
-                                        "address": f"{host_data['HostIp']}:{host_data['HostPort']}"}
+                                        "address": f"{host_data['HostIp']}:{host_data['HostPort']}",
+                                        "uuid":uuid}
         # ping uptime
         await store_services()
         print(f"Done {data}")
         await nc.publish(f"{SERVICE_NAME}-status", bytes(
             json.dumps({"sha1": data, "message": f"Done {data} on {host_data['HostIp']}:{host_data['HostPort']}",
                         "address": f"{host_data['HostIp']}:{host_data['HostPort']}",
-                        "uuid": data}), "utf-8"))
+                        "uuid": uuid}), "utf-8"))
 
         return
     except Exception as e:
@@ -526,11 +543,14 @@ async def connect_scheduler():
 
 async def check_first_init():
     global FIRST_INIT
+    print('check first init')
     data_source = with_sort(find_data_source())
     if data_source is None:
+        print('data source not found')
         FIRST_INIT = False
         return
     if get_size(DATA_SOURCE) == get_size(f"{ZPOOL_MOUNT}/{data_source.name}"):
+        print('data source and stored data is correct')
         FIRST_INIT = True
         return
 
