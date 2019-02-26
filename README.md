@@ -18,9 +18,14 @@ services:
 ```
 
 ![SaaS for everythink](SaaS.jpg?raw=true "SaaS")
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2FNegashev%2Francher-saas.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2FNegashev%2Francher-saas?ref=badge_shield)
 
 
 
 my mysql saas exmaple
 
 ![My mysql saas exmaple](my-saas-example.png?raw=true "My SaaS")
+
+
+## License
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2FNegashev%2Francher-saas.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2FNegashev%2Francher-saas?ref=badge_large)
