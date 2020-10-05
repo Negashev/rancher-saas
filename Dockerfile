@@ -6,6 +6,7 @@ VOLUME /source
 
 RUN apk add --update python3
 RUN apk add --update zfs
+RUN apk add --update py3-requests
 
 ADD requirements.txt ./
 
