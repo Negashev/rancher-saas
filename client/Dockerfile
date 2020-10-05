@@ -6,6 +6,7 @@ FROM alpine
 EXPOSE 8080
 RUN apk add --update python3
 RUN apk add --update supervisor
+RUN apk add --update py3-requests
 
 ADD requirements.txt ./
 
