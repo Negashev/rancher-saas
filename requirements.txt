@@ -1,6 +1,6 @@
 APScheduler==3.5.3
 aiodocker==0.14.0
-requests==2.20.0
+requests>=2.20.0
 asyncio-nats-client==0.8.0
 weir==0.4.0
 https://github.com/squeaky-pl/japronto/archive/master.zip
