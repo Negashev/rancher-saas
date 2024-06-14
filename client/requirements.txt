@@ -3,3 +3,4 @@ requests>=2.20.0
 https://github.com/squeaky-pl/japronto/archive/master.zip
 
 urllib3>=1.25.9 # not directly required, pinned by Snyk to avoid a vulnerability
+setuptools>=65.5.1 # not directly required, pinned by Snyk to avoid a vulnerability
